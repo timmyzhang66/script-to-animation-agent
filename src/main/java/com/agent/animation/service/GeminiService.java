@@ -145,13 +145,14 @@ public class GeminiService {
         return RetryUtils.executeWithRetry(() -> {
             logger.info("Generating video from image. Prompt: {}, Keyframe: {}", prompt, keyframeImagePath);
             
-            // 先将图片上传到 OSS 获取公开 URL
-            String imageUrl = ossService.uploadFile(keyframeImagePath, null);
-            logger.info("Keyframe image uploaded to OSS: {}", imageUrl);
+            // 读取本地图片文件为字节数组
+            byte[] imageBytes = FileUtils.readFileToByteArray(new File(keyframeImagePath));
+            logger.info("Read keyframe image: {} bytes", imageBytes.length);
             
-            // 使用 Builder 创建 Image 对象，设置 gcsUri
+            // 使用 Builder 创建 Image 对象，直接设置图片字节数据
+            // 这样可以避免对 GCS 或外部 URL 的依赖，解决 400 Invalid resource 错误
             Image keyframeImage = Image.builder()
-                    .gcsUri(imageUrl)
+                    .imageBytes(imageBytes)
                     .build();
             
             GenerateVideosConfig config = GenerateVideosConfig.builder()
