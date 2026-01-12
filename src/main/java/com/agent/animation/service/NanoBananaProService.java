@@ -160,6 +160,7 @@ public class NanoBananaProService {
             }
         }
         
+        content.addProperty("role", "user");  // 添加 role 字段
         content.add("parts", parts);
         contents.add(content);
         requestBody.add("contents", contents);
