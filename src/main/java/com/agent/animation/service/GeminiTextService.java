@@ -87,7 +87,54 @@ public class GeminiTextService {
     }
 
     /**
-     * 从脚本中提取主要角色描述
+     * 分析脚本中的所有角色
+     * 
+     * @param scriptContent 脚本内容
+     * @return JSON 格式的角色列表
+     * @throws Exception 如果分析失败
+     */
+    public String analyzeCharacters(String scriptContent) throws Exception {
+        String systemPrompt = "You are an expert in analyzing scripts and identifying characters. " +
+                "Your task is to identify ALL characters in the script, including main characters and supporting characters. " +
+                "For each character, provide a detailed visual description suitable for image generation.";
+        
+        String userPrompt = "Analyze the following script and identify ALL characters. For each character, provide:\n" +
+                "1. name: character's name\n" +
+                "2. description: detailed visual description (physical appearance, clothing, distinctive features)\n" +
+                "3. role: character's role (e.g., 'protagonist', 'antagonist', 'supporting')\n" +
+                "4. isMainCharacter: true if this is the main character, false otherwise\n\n" +
+                "Output format (JSON only, no markdown):\n" +
+                "{\n" +
+                "  \"characters\": [\n" +
+                "    {\n" +
+                "      \"name\": \"...\",\n" +
+                "      \"description\": \"...\",\n" +
+                "      \"role\": \"...\",\n" +
+                "      \"isMainCharacter\": true/false\n" +
+                "    }\n" +
+                "  ]\n" +
+                "}\n\n" +
+                "Script:\n" + scriptContent + "\n\n" +
+                "Characters JSON:";
+        
+        String response = generateText(systemPrompt, userPrompt);
+        
+        // 清理响应，移除可能的 markdown 代码块标记
+        response = response.trim();
+        if (response.startsWith("```json")) {
+            response = response.substring(7);
+        } else if (response.startsWith("```")) {
+            response = response.substring(3);
+        }
+        if (response.endsWith("```")) {
+            response = response.substring(0, response.length() - 3);
+        }
+        
+        return response.trim();
+    }
+    
+    /**
+     * 从脚本中提取主要角色描述（兼容旧代码）
      * 
      * @param scriptContent 脚本内容
      * @return 角色描述文本
@@ -107,6 +154,42 @@ public class GeminiTextService {
         return generateText(systemPrompt, userPrompt);
     }
 
+    /**
+     * 分析场景中涉及的角色
+     * 
+     * @param sceneDescription 场景描述
+     * @param allCharacterNames 所有角色名称列表
+     * @return JSON 格式的角色名称列表
+     * @throws Exception 如果分析失败
+     */
+    public String analyzeSceneCharacters(String sceneDescription, String allCharacterNames) throws Exception {
+        String systemPrompt = "You are an expert at analyzing scene descriptions and identifying which characters appear in each scene.";
+        
+        String userPrompt = "Based on the scene description, identify which characters from the character list appear in this scene.\n\n" +
+                "Available characters: " + allCharacterNames + "\n\n" +
+                "Scene description: " + sceneDescription + "\n\n" +
+                "Output format (JSON only, no markdown):\n" +
+                "{\n" +
+                "  \"characterNames\": [\"character1\", \"character2\"]\n" +
+                "}\n\n" +
+                "Characters in scene JSON:";
+        
+        String response = generateText(systemPrompt, userPrompt);
+        
+        // 清理响应
+        response = response.trim();
+        if (response.startsWith("```json")) {
+            response = response.substring(7);
+        } else if (response.startsWith("```")) {
+            response = response.substring(3);
+        }
+        if (response.endsWith("```")) {
+            response = response.substring(0, response.length() - 3);
+        }
+        
+        return response.trim();
+    }
+    
     /**
      * 生成分镜脚本
      * 

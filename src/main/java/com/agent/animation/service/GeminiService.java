@@ -153,7 +153,64 @@ public class GeminiService {
     }
 
     /**
-     * 生成视频（图像到视频）
+     * 从图像 URL 生成视频（推荐方式）
+     * 
+     * @param prompt 文本提示
+     * @param keyframeImageUrl 关键帧图像 URL（GCS 或 HTTP URL）
+     * @param outputPath 输出文件路径
+     * @return 生成的视频文件路径
+     * @throws Exception 生成失败时抛出异常
+     */
+    public String generateVideoFromImageUrl(String prompt, String keyframeImageUrl, String outputPath) throws Exception {
+        return RetryUtils.executeWithRetry(() -> {
+            logger.info("Generating video from image URL. Prompt: {}, Keyframe URL: {}", prompt, keyframeImageUrl);
+            
+            // 如果是本地文件路径，转换为 URL
+            String imageUrl = keyframeImageUrl;
+            if (keyframeImageUrl.startsWith("/") || keyframeImageUrl.startsWith(".")) {
+                logger.info("Local path detected, uploading to GCS first...");
+                imageUrl = gcsService.uploadFile(keyframeImageUrl, null, false);
+                logger.info("Uploaded to GCS: {}", imageUrl);
+            }
+            
+            // 使用 URL 创建 Image 对象
+            Image keyframeImage = Image.builder()
+                    .gcsUri(imageUrl)  // 使用 GCS URI
+                    .build();
+            
+            logger.info("Created Image object with GCS URI: {}", imageUrl);
+            
+            // 使用 GenerateVideosSource 包装 prompt 和 image
+            GenerateVideosSource source = GenerateVideosSource.builder()
+                    .prompt(prompt)
+                    .image(keyframeImage)
+                    .build();
+            
+            // 配置视频生成参数
+            GenerateVideosConfig videoConfig = GenerateVideosConfig.builder()
+                    .aspectRatio(this.config.getVeoAspectRatio())
+                    .resolution(this.config.getVeoResolution())
+                    .generateAudio(false)
+                    .build();
+            
+            logger.info("Starting video generation with Veo model: {}", this.config.getVeoModel());
+            
+            // 调用 Veo API 生成视频
+            GenerateVideosOperation operation = client.models.generateVideos(
+                    this.config.getVeoModel(),
+                    source,
+                    videoConfig
+            );
+            
+            // 轮询等待视频生成完成
+            logger.info("Video generation operation started: {}", operation.name());
+            
+            return waitForVideoOperation(operation, outputPath);
+        });
+    }
+    
+    /**
+     * 从图像生成视频（兼容旧代码，使用本地文件路径）
      * 
      * @param prompt 文本提示
      * @param keyframeImagePath 关键帧图像路径

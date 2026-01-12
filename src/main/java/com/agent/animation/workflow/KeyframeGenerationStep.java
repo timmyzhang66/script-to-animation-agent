@@ -1,6 +1,7 @@
 package com.agent.animation.workflow;
 
 import com.agent.animation.config.AppConfig;
+import com.agent.animation.dto.Character;
 import com.agent.animation.dto.Scene;
 import com.agent.animation.service.NanoBananaProService;
 import com.agent.animation.service.GCSService;
@@ -8,13 +9,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * 关键帧生成工作流步骤
  * 使用 Nano Banana Pro 为每个场景生成关键帧图像
- * 支持参考图像以保持角色一致性
+ * 根据场景涉及的角色，使用相应的参考图像
  */
 public class KeyframeGenerationStep implements WorkflowStep {
     private static final Logger logger = LoggerFactory.getLogger(KeyframeGenerationStep.class);
@@ -32,15 +34,6 @@ public class KeyframeGenerationStep implements WorkflowStep {
     public void execute(WorkflowContext context) throws Exception {
         logger.info("Starting keyframe generation step with Nano Banana Pro");
         
-        // 获取主角色图像的 URL
-        String characterImageUrl = context.getMainCharacter().getImageUrl();
-        
-        if (characterImageUrl == null || characterImageUrl.isEmpty()) {
-            logger.warn("No character image URL found, generating keyframes without reference");
-        } else {
-            logger.info("Using character reference image: {}", characterImageUrl);
-        }
-        
         // 为每个场景生成关键帧
         int sceneIndex = 0;
         for (Scene scene : context.getStoryboard().getScenes()) {
@@ -52,18 +45,46 @@ public class KeyframeGenerationStep implements WorkflowStep {
                     "keyframe_scene_" + scene.getSceneNumber() + ".jpg";
             
             try {
-                // 构建增强的提示词，包含角色一致性要求
-                String visualPrompt = buildEnhancedPrompt(scene.getVisualDescription(), 
-                        context.getMainCharacter().getDescription());
+                // 1. 获取场景涉及的角色
+                List<String> characterNames = scene.getCharacterNames();
+                List<Character> sceneCharacters = context.getCharactersForScene(characterNames);
                 
-                // 使用 Nano Banana Pro 生成图像
+                logger.info("Scene {} involves {} characters: {}", 
+                        scene.getSceneNumber(), 
+                        sceneCharacters.size(), 
+                        characterNames);
+                
+                // 2. 收集角色参考图像 URL
+                List<String> referenceUrls = new ArrayList<>();
+                StringBuilder characterDescriptions = new StringBuilder();
+                
+                for (Character character : sceneCharacters) {
+                    if (character.getImageUrl() != null && !character.getImageUrl().isEmpty()) {
+                        referenceUrls.add(character.getImageUrl());
+                        characterDescriptions.append(character.getName())
+                                .append(": ")
+                                .append(character.getDescription())
+                                .append("\n");
+                    }
+                }
+                
+                // 3. 构建增强的提示词
+                String visualPrompt = buildEnhancedPrompt(
+                        scene.getVisualDescription(), 
+                        characterDescriptions.toString(),
+                        characterNames
+                );
+                
+                logger.info("Using {} reference images for scene {}", 
+                        referenceUrls.size(), scene.getSceneNumber());
+                
+                // 4. 使用 Nano Banana Pro 生成图像
                 String aspectRatio = config.getNanoBananaProAspectRatio();
                 String resolution = config.getNanoBananaProResolution();
                 
                 String base64Image;
-                if (characterImageUrl != null && !characterImageUrl.isEmpty()) {
+                if (!referenceUrls.isEmpty()) {
                     // 使用参考图像生成
-                    List<String> referenceUrls = Arrays.asList(characterImageUrl);
                     base64Image = nanoBananaProService.generateImageWithReferences(
                             visualPrompt,
                             referenceUrls,
@@ -72,6 +93,7 @@ public class KeyframeGenerationStep implements WorkflowStep {
                     );
                 } else {
                     // 无参考图像生成
+                    logger.warn("No reference images available for scene {}", scene.getSceneNumber());
                     base64Image = nanoBananaProService.generateImage(
                             visualPrompt,
                             aspectRatio,
@@ -79,16 +101,18 @@ public class KeyframeGenerationStep implements WorkflowStep {
                     );
                 }
                 
-                // 保存图像到本地
+                // 5. 保存图像到本地
                 nanoBananaProService.saveImageToFile(base64Image, keyframePath);
                 scene.setKeyframePath(keyframePath);
                 
-                // 上传到 GCS 并获取 URL（用于后续视频生成）
+                // 6. 上传到 GCS 并获取 URL
+                logger.info("Uploading keyframe to GCS for scene {}", scene.getSceneNumber());
                 String keyframeUrl = gcsService.uploadFile(keyframePath, null, false);
                 scene.setKeyframeUrl(keyframeUrl);
                 
-                logger.info("Keyframe generated for scene {}: {}", scene.getSceneNumber(), keyframePath);
-                logger.info("Keyframe URL: {}", keyframeUrl);
+                logger.info("Keyframe generated for scene {}", scene.getSceneNumber());
+                logger.info("  Local path: {}", keyframePath);
+                logger.info("  GCS URL: {}", keyframeUrl);
                 
             } catch (Exception e) {
                 logger.error("Failed to generate keyframe for scene {}", scene.getSceneNumber(), e);
@@ -103,28 +127,34 @@ public class KeyframeGenerationStep implements WorkflowStep {
     /**
      * 构建增强的提示词，包含角色一致性要求
      */
-    private String buildEnhancedPrompt(String visualDescription, String characterDescription) {
+    private String buildEnhancedPrompt(String visualDescription, String characterDescriptions, List<String> characterNames) {
         StringBuilder prompt = new StringBuilder();
         
         // 添加场景描述
         prompt.append(visualDescription);
         
         // 添加角色一致性要求
-        if (characterDescription != null && !characterDescription.isEmpty()) {
-            prompt.append("\n\nCharacter consistency requirements: ");
-            prompt.append(characterDescription);
-            prompt.append("\nMaintain the same character design, appearance, and style as shown in the reference image.");
+        if (characterDescriptions != null && !characterDescriptions.isEmpty()) {
+            prompt.append("\n\nCharacters in this scene:\n");
+            prompt.append(characterDescriptions);
+            prompt.append("\nIMPORTANT: Maintain the same character designs, appearances, and styles as shown in the reference images.");
+            prompt.append("\nEnsure all characters (").append(String.join(", ", characterNames))
+                    .append(") are clearly visible and recognizable.");
         }
         
         // 添加质量和风格要求
-        prompt.append("\n\nStyle: High-quality, cinematic, detailed, professional animation style.");
-        prompt.append(" Consistent lighting, color palette, and composition.");
+        prompt.append("\n\nStyle requirements:");
+        prompt.append("\n- High-quality, cinematic, detailed");
+        prompt.append("\n- Professional animation style");
+        prompt.append("\n- Consistent lighting, color palette, and composition");
+        prompt.append("\n- Clear focus on the main action and characters");
+        prompt.append("\n- Suitable for video generation");
         
         return prompt.toString();
     }
 
     @Override
     public String getStepName() {
-        return "Keyframe Generation (Nano Banana Pro)";
+        return "Keyframe Generation (Multi-Character)";
     }
 }

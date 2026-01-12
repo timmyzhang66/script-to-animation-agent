@@ -1,32 +1,37 @@
 package com.agent.animation.dto;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * 场景数据对象
- * 代表分镜中的一个场景
+ * 代表分镜中的一个场景，包含涉及的角色、关键帧和视频信息
  */
 public class Scene {
     private int sceneNumber;
     private String description;
     private String visualDescription;
     private String dialogue;
-    private String keyframePath;
-    private String keyframeUrl;  // GCS URL 或公开 URL
-    private String videoPath;
+    
+    // 场景涉及的角色名称列表
+    private List<String> characterNames;
+    
+    // 关键帧信息
+    private String keyframePath;      // 本地文件路径
+    private String keyframeUrl;       // GCS/OSS URL
+    
+    // 视频信息
+    private String videoPath;         // 本地文件路径
+    private String videoUrl;          // GCS/OSS URL
 
     public Scene() {
+        this.characterNames = new ArrayList<>();
     }
 
     public Scene(int sceneNumber, String description) {
         this.sceneNumber = sceneNumber;
         this.description = description;
-    }
-    
-    public Scene(int sceneNumber, String description, String visualDescription, String keyframePath, String keyframeUrl) {
-        this.sceneNumber = sceneNumber;
-        this.description = description;
-        this.visualDescription = visualDescription;
-        this.keyframePath = keyframePath;
-        this.keyframeUrl = keyframeUrl;
+        this.characterNames = new ArrayList<>();
     }
 
     public int getSceneNumber() {
@@ -60,6 +65,20 @@ public class Scene {
     public void setDialogue(String dialogue) {
         this.dialogue = dialogue;
     }
+    
+    public List<String> getCharacterNames() {
+        return characterNames;
+    }
+    
+    public void setCharacterNames(List<String> characterNames) {
+        this.characterNames = characterNames;
+    }
+    
+    public void addCharacterName(String characterName) {
+        if (!this.characterNames.contains(characterName)) {
+            this.characterNames.add(characterName);
+        }
+    }
 
     public String getKeyframePath() {
         return keyframePath;
@@ -84,15 +103,25 @@ public class Scene {
     public void setVideoPath(String videoPath) {
         this.videoPath = videoPath;
     }
+    
+    public String getVideoUrl() {
+        return videoUrl;
+    }
+    
+    public void setVideoUrl(String videoUrl) {
+        this.videoUrl = videoUrl;
+    }
 
     @Override
     public String toString() {
         return "Scene{" +
                 "sceneNumber=" + sceneNumber +
                 ", description='" + description + '\'' +
+                ", characterNames=" + characterNames +
                 ", keyframePath='" + keyframePath + '\'' +
                 ", keyframeUrl='" + keyframeUrl + '\'' +
                 ", videoPath='" + videoPath + '\'' +
+                ", videoUrl='" + videoUrl + '\'' +
                 '}';
     }
 }

@@ -3,6 +3,7 @@ package com.agent.animation.workflow;
 import com.agent.animation.config.AppConfig;
 import com.agent.animation.dto.Scene;
 import com.agent.animation.service.VideoProcessingService;
+import com.agent.animation.service.GCSService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -19,10 +20,12 @@ import java.util.List;
 public class VideoMergingStep implements WorkflowStep {
     private static final Logger logger = LoggerFactory.getLogger(VideoMergingStep.class);
     private final VideoProcessingService videoProcessingService;
+    private final GCSService gcsService;
     private final AppConfig config;
 
     public VideoMergingStep() {
         this.videoProcessingService = new VideoProcessingService();
+        this.gcsService = new GCSService();
         this.config = AppConfig.getInstance();
     }
 
@@ -62,7 +65,13 @@ public class VideoMergingStep implements WorkflowStep {
         // 保存最终视频路径到上下文
         context.setFinalVideoPath(outputPath);
         
+        // 上传最终视频到 GCS
+        logger.info("Uploading final video to GCS...");
+        String finalVideoUrl = gcsService.uploadFile(outputPath, null, false);
+        context.setFinalVideoUrl(finalVideoUrl);
+        
         logger.info("Video merging completed: {}", outputPath);
+        logger.info("Final video URL: {}", finalVideoUrl);
         
         // 输出视频信息
         try {

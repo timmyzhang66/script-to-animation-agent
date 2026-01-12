@@ -132,6 +132,14 @@ public class AppConfig {
     public int getVeoMaxWaitMinutes() {
         return getIntProperty("veo.max.wait.minutes", 30);
     }
+    
+    public String getVeoAspectRatio() {
+        return getProperty("veo.aspect.ratio", "16:9");
+    }
+    
+    public String getVeoResolution() {
+        return getProperty("veo.resolution", "1080p");
+    }
 
     // 重试配置
     public int getMaxRetryAttempts() {
