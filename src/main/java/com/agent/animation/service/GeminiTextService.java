@@ -1,16 +1,11 @@
 package com.agent.animation.service;
 
 import com.agent.animation.config.AppConfig;
-import com.google.genai.GenerativeModel;
-import com.google.genai.types.Content;
+import com.google.genai.Client;
 import com.google.genai.types.GenerateContentConfig;
 import com.google.genai.types.GenerateContentResponse;
-import com.google.genai.types.Part;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Gemini 文本服务类
@@ -20,17 +15,20 @@ public class GeminiTextService {
     private static final Logger logger = LoggerFactory.getLogger(GeminiTextService.class);
     
     private final AppConfig config;
-    private final String apiKey;
+    private final Client client;
     private final String modelName;
 
     public GeminiTextService() {
         this.config = AppConfig.getInstance();
-        this.apiKey = config.getGeminiApiKey();
+        String apiKey = config.getGeminiApiKey();
         this.modelName = config.getTextModel();
         
         if (apiKey == null || apiKey.isEmpty()) {
             throw new IllegalStateException("GEMINI_API_KEY environment variable is not set");
         }
+        
+        // 创建 Gemini Client
+        this.client = Client.builder().apiKey(apiKey).build();
         
         logger.info("GeminiTextService initialized with model: {}", modelName);
     }
@@ -47,34 +45,26 @@ public class GeminiTextService {
         try {
             logger.info("Generating text with Gemini model: {}", modelName);
             
-            // 创建生成模型
-            GenerativeModel model = new GenerativeModel(modelName, apiKey);
-            
             // 构建完整的提示词
             String fullPrompt = systemPrompt + "\n\n" + userPrompt;
             
-            // 创建内容
-            List<Part> parts = new ArrayList<>();
-            parts.add(Part.text(fullPrompt));
-            Content content = Content.user(parts);
-            
             // 配置生成参数
             GenerateContentConfig contentConfig = GenerateContentConfig.builder()
-                    .temperature(0.7)
-                    .topK(40)
-                    .topP(0.95)
+                    .temperature(0.7f)
+                    .topK(40f)
+                    .topP(0.95f)
                     .maxOutputTokens(8192)
                     .build();
             
             // 调用 API
-            GenerateContentResponse response = model.generateContent(content, contentConfig);
+            GenerateContentResponse response = client.models.generateContent(
+                    modelName, 
+                    fullPrompt, 
+                    contentConfig
+            );
             
             // 提取响应文本
-            if (response.candidates() == null || response.candidates().isEmpty()) {
-                throw new Exception("No candidates returned from Gemini");
-            }
-            
-            String responseText = response.candidates().get(0).content().parts().get(0).text();
+            String responseText = response.text();
             
             if (responseText == null || responseText.trim().isEmpty()) {
                 throw new Exception("Empty content returned from Gemini");
