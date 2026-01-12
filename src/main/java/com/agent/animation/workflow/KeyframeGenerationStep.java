@@ -4,7 +4,7 @@ import com.agent.animation.config.AppConfig;
 import com.agent.animation.dto.Character;
 import com.agent.animation.dto.Scene;
 import com.agent.animation.service.NanoBananaProService;
-import com.agent.animation.service.GCSService;
+import com.agent.animation.service.OSSService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -21,12 +21,12 @@ import java.util.stream.Collectors;
 public class KeyframeGenerationStep implements WorkflowStep {
     private static final Logger logger = LoggerFactory.getLogger(KeyframeGenerationStep.class);
     private final NanoBananaProService nanoBananaProService;
-    private final GCSService gcsService;
+    private final OSSService ossService;
     private final AppConfig config;
 
     public KeyframeGenerationStep() throws Exception {
         this.nanoBananaProService = new NanoBananaProService();
-        this.gcsService = new GCSService();
+        this.ossService = new OSSService();
         this.config = AppConfig.getInstance();
     }
 
@@ -105,14 +105,14 @@ public class KeyframeGenerationStep implements WorkflowStep {
                 nanoBananaProService.saveImageToFile(base64Image, keyframePath);
                 scene.setKeyframePath(keyframePath);
                 
-                // 6. 上传到 GCS 并获取 URL
-                logger.info("Uploading keyframe to GCS for scene {}", scene.getSceneNumber());
-                String keyframeUrl = gcsService.uploadFile(keyframePath, null, false);
+                // 6. 上传到 OSS 并获取 URL
+                logger.info("Uploading keyframe to OSS for scene {}", scene.getSceneNumber());
+                String keyframeUrl = ossService.uploadFile(keyframePath, null);
                 scene.setKeyframeUrl(keyframeUrl);
                 
                 logger.info("Keyframe generated for scene {}", scene.getSceneNumber());
                 logger.info("  Local path: {}", keyframePath);
-                logger.info("  GCS URL: {}", keyframeUrl);
+                logger.info("  OSS URL: {}", keyframeUrl);
                 
             } catch (Exception e) {
                 logger.error("Failed to generate keyframe for scene {}", scene.getSceneNumber(), e);

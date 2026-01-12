@@ -4,7 +4,7 @@ import com.agent.animation.config.AppConfig;
 import com.agent.animation.dto.Character;
 import com.agent.animation.service.NanoBananaProService;
 import com.agent.animation.service.GeminiTextService;
-import com.agent.animation.service.GCSService;
+import com.agent.animation.service.OSSService;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -23,14 +23,14 @@ public class CharacterGenerationStep implements WorkflowStep {
     private static final Logger logger = LoggerFactory.getLogger(CharacterGenerationStep.class);
     private final GeminiTextService geminiTextService;
     private final NanoBananaProService nanoBananaProService;
-    private final GCSService gcsService;
+    private final OSSService ossService;
     private final AppConfig config;
     private final Gson gson;
 
     public CharacterGenerationStep() throws Exception {
         this.geminiTextService = new GeminiTextService();
         this.nanoBananaProService = new NanoBananaProService();
-        this.gcsService = new GCSService();
+        this.ossService = new OSSService();
         this.config = AppConfig.getInstance();
         this.gson = new Gson();
     }
@@ -96,14 +96,14 @@ public class CharacterGenerationStep implements WorkflowStep {
                 nanoBananaProService.saveImageToFile(base64Image, characterImagePath);
                 character.setImagePath(characterImagePath);
                 
-                // 上传到 GCS 并获取 URL
-                logger.info("Uploading character image to GCS: {}", name);
-                String characterImageUrl = gcsService.uploadFile(characterImagePath, null, false);
+                // 上传到 OSS 并获取 URL
+                logger.info("Uploading character image to OSS: {}", name);
+                String characterImageUrl = ossService.uploadFile(characterImagePath, null);
                 character.setImageUrl(characterImageUrl);
                 
                 logger.info("Character image generated and uploaded: {}", name);
                 logger.info("  Local path: {}", characterImagePath);
-                logger.info("  GCS URL: {}", characterImageUrl);
+                logger.info("  OSS URL: {}", characterImageUrl);
                 
                 // 添加到角色列表
                 characters.add(character);

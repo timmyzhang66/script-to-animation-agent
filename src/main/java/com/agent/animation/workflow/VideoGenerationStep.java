@@ -3,7 +3,7 @@ package com.agent.animation.workflow;
 import com.agent.animation.config.AppConfig;
 import com.agent.animation.dto.Scene;
 import com.agent.animation.service.GeminiService;
-import com.agent.animation.service.GCSService;
+import com.agent.animation.service.OSSService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -17,12 +17,12 @@ import java.io.File;
 public class VideoGenerationStep implements WorkflowStep {
     private static final Logger logger = LoggerFactory.getLogger(VideoGenerationStep.class);
     private final GeminiService geminiService;
-    private final GCSService gcsService;
+    private final OSSService ossService;
     private final AppConfig config;
 
     public VideoGenerationStep() {
         this.geminiService = new GeminiService();
-        this.gcsService = new GCSService();
+        this.ossService = new OSSService();
         this.config = AppConfig.getInstance();
     }
 
@@ -64,13 +64,13 @@ public class VideoGenerationStep implements WorkflowStep {
                 scene.setVideoPath(videoPath);
                 
                 // 3. 上传视频到 GCS
-                logger.info("Uploading video to GCS for scene {}", scene.getSceneNumber());
-                String videoUrl = gcsService.uploadFile(videoPath, null, false);
+                logger.info("Uploading video to OSS for scene {}", scene.getSceneNumber());
+                String videoUrl = ossService.uploadFile(videoPath, null);
                 scene.setVideoUrl(videoUrl);
                 
                 logger.info("Video generated for scene {}", scene.getSceneNumber());
                 logger.info("  Local path: {}", videoPath);
-                logger.info("  GCS URL: {}", videoUrl);
+                logger.info("  OSS URL: {}", videoUrl);
                 
             } catch (Exception e) {
                 logger.error("Failed to generate video for scene {}", scene.getSceneNumber(), e);

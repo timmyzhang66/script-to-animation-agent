@@ -21,7 +21,6 @@ public class GeminiService {
     private final Client client;
     private final AppConfig config;
     private final OSSService ossService;
-    private final GCSService gcsService;
 
     public GeminiService() {
         this.config = AppConfig.getInstance();
@@ -57,10 +56,8 @@ public class GeminiService {
             logger.info("GeminiService initialized with API Key mode");
         }
         
-        // 初始化 OSS 服务（保留以供其他用途）
+        // 初始化 OSS 服务
         this.ossService = new OSSService();
-        // 初始化 GCS 服务（用于 Vertex AI 原生集成）
-        this.gcsService = new GCSService();
     }
 
     /**
@@ -156,7 +153,7 @@ public class GeminiService {
      * 从图像 URL 生成视频（推荐方式）
      * 
      * @param prompt 文本提示
-     * @param keyframeImageUrl 关键帧图像 URL（GCS 或 HTTP URL）
+     * @param keyframeImageUrl 关键帧图像 URL（OSS 或 HTTP URL）
      * @param outputPath 输出文件路径
      * @return 生成的视频文件路径
      * @throws Exception 生成失败时抛出异常
@@ -165,20 +162,34 @@ public class GeminiService {
         return RetryUtils.executeWithRetry(() -> {
             logger.info("Generating video from image URL. Prompt: {}, Keyframe URL: {}", prompt, keyframeImageUrl);
             
-            // 如果是本地文件路径，转换为 URL
+            // 如果是本地文件路径，上传到 OSS
             String imageUrl = keyframeImageUrl;
             if (keyframeImageUrl.startsWith("/") || keyframeImageUrl.startsWith(".")) {
-                logger.info("Local path detected, uploading to GCS first...");
-                imageUrl = gcsService.uploadFile(keyframeImageUrl, null, false);
-                logger.info("Uploaded to GCS: {}", imageUrl);
+                logger.info("Local path detected, uploading to OSS first...");
+                imageUrl = ossService.uploadFile(keyframeImageUrl, null);
+                logger.info("Uploaded to OSS: {}", imageUrl);
             }
             
             // 使用 URL 创建 Image 对象
-            Image keyframeImage = Image.builder()
-                    .gcsUri(imageUrl)  // 使用 GCS URI
-                    .build();
-            
-            logger.info("Created Image object with GCS URI: {}", imageUrl);
+            // 注意：Vertex AI 只支持 gcsUri，不支持直接的 HTTP URL
+            // 如果是 OSS URL，需要先下载到本地然后使用 imageBytes
+            Image keyframeImage;
+            if (imageUrl.startsWith("gs://")) {
+                // GCS URI - 直接使用
+                keyframeImage = Image.builder()
+                        .gcsUri(imageUrl)
+                        .build();
+                logger.info("Created Image object with GCS URI: {}", imageUrl);
+            } else {
+                // HTTP URL - 需要转换为 imageBytes
+                logger.info("HTTP URL detected, downloading image...");
+                byte[] imageBytes = java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(keyframeImageUrl));
+                keyframeImage = Image.builder()
+                        .imageBytes(imageBytes)
+                        .mimeType("image/jpeg")
+                        .build();
+                logger.info("Created Image object with imageBytes");
+            }
             
             // 使用 GenerateVideosSource 包装 prompt 和 image
             GenerateVideosSource source = GenerateVideosSource.builder()
@@ -350,10 +361,6 @@ public class GeminiService {
         // 关闭 OSS 服务
         if (ossService != null) {
             ossService.close();
-        }
-        // 关闭 GCS 服务
-        if (gcsService != null) {
-            gcsService.close();
         }
         // 如果 Client 有关闭方法，在这里调用
         logger.info("GeminiService closed");
