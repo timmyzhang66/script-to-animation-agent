@@ -50,3 +50,4 @@ Thumbs.db
 # API Keys (never commit these!)
 *api_key*
 *apikey*
+gcp-service-account.json

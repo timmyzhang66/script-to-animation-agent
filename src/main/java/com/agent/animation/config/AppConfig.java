@@ -34,9 +34,24 @@ public class AppConfig {
             
             // 从环境变量加载敏感配置
             String geminiKey = System.getenv("GEMINI_API_KEY");
-            
             if (geminiKey != null) {
                 properties.setProperty("gemini.api.key", geminiKey);
+            }
+            
+            // 加载 GCP 配置
+            String gcpProjectId = System.getenv("GCP_PROJECT_ID");
+            if (gcpProjectId != null) {
+                properties.setProperty("gcp.project.id", gcpProjectId);
+            }
+            
+            String gcpLocation = System.getenv("GCP_LOCATION");
+            if (gcpLocation != null) {
+                properties.setProperty("gcp.location", gcpLocation);
+            }
+            
+            String gcpServiceAccountKeyPath = System.getenv("GCP_SERVICE_ACCOUNT_KEY_PATH");
+            if (gcpServiceAccountKeyPath != null) {
+                properties.setProperty("gcp.service.account.key.path", gcpServiceAccountKeyPath);
             }
         } catch (IOException e) {
             throw new RuntimeException("Failed to load application properties", e);
@@ -153,5 +168,18 @@ public class AppConfig {
 
     public String getVideoCodec() {
         return getProperty("video.codec", "h264");
+    }
+    
+    // GCP 配置
+    public String getGcpProjectId() {
+        return getProperty("gcp.project.id");
+    }
+    
+    public String getGcpLocation() {
+        return getProperty("gcp.location", "us-central1");
+    }
+    
+    public String getGcpServiceAccountKeyPath() {
+        return getProperty("gcp.service.account.key.path");
     }
 }

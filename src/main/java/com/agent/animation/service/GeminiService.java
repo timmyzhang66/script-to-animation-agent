@@ -25,25 +25,42 @@ public class GeminiService {
 
     public GeminiService() {
         this.config = AppConfig.getInstance();
-        String apiKey = config.getGeminiApiKey();
         
-        if (apiKey == null || apiKey.isEmpty()) {
-            throw new IllegalStateException("GEMINI_API_KEY environment variable is not set");
+        // 检查是否配置了服务账号密钥文件
+        String serviceAccountKeyPath = config.getGcpServiceAccountKeyPath();
+        if (serviceAccountKeyPath != null && !serviceAccountKeyPath.isEmpty()) {
+            // 使用标准 Vertex AI 模式（服务账号认证）
+            logger.info("Using Standard Vertex AI mode with service account");
+            System.setProperty("GOOGLE_APPLICATION_CREDENTIALS", serviceAccountKeyPath);
+            
+            this.client = Client.builder()
+                    .project(config.getGcpProjectId())
+                    .location(config.getGcpLocation())
+                    .vertexAI(true)
+                    .build();
+            
+            logger.info("GeminiService initialized with Standard Vertex AI mode");
+            logger.info("  Project: {}", config.getGcpProjectId());
+            logger.info("  Location: {}", config.getGcpLocation());
+        } else {
+            // 使用 API Key 模式（仅支持部分 API）
+            String apiKey = config.getGeminiApiKey();
+            if (apiKey == null || apiKey.isEmpty()) {
+                throw new IllegalStateException("Either GEMINI_API_KEY or GCP_SERVICE_ACCOUNT_KEY_PATH must be set");
+            }
+            
+            logger.warn("Using API Key mode - Note: Veo API requires Standard Vertex AI mode");
+            this.client = Client.builder()
+                    .apiKey(apiKey)
+                    .build();
+            
+            logger.info("GeminiService initialized with API Key mode");
         }
-        
-        // 创建 Gemini Client
-        // 支持 Vertex AI Express Mode（使用 API Key 访问 Vertex AI）
-        this.client = Client.builder()
-                .apiKey(apiKey)
-                .vertexAI(true)  // 启用 Vertex AI Express Mode
-                .build();
         
         // 初始化 OSS 服务（保留以供其他用途）
         this.ossService = new OSSService();
         // 初始化 GCS 服务（用于 Vertex AI 原生集成）
         this.gcsService = new GCSService();
-        
-        logger.info("GeminiService initialized with Vertex AI Express Mode and GCS");
     }
 
     /**
@@ -152,9 +169,20 @@ public class GeminiService {
             byte[] imageBytes = FileUtils.readFileToByteArray(new File(keyframeImagePath));
             logger.info("Read keyframe image: {} bytes", imageBytes.length);
             
-            // 使用 Image.fromFile 创建 Image 对象
-            // 注意：这里需要使用文件路径，而不是字节数组
-            Image keyframeImage = Image.fromFile(keyframeImagePath, "image/jpeg");
+            // 根据文件扩展名确定 MIME 类型
+            String mimeType = "image/jpeg";
+            if (keyframeImagePath.toLowerCase().endsWith(".png")) {
+                mimeType = "image/png";
+            }
+            
+            // 使用 imageBytes 和 mimeType 创建 Image 对象
+            // 这是 Vertex AI 标准模式的正确用法
+            Image keyframeImage = Image.builder()
+                    .imageBytes(imageBytes)
+                    .mimeType(mimeType)
+                    .build();
+            
+            logger.info("Created Image object with MIME type: {}", mimeType);
             
             // 使用 GenerateVideosSource 包装 prompt 和 image
             // 这是官方 Java SDK 的正确用法
