@@ -117,6 +117,19 @@ set GEMINI_API_KEY=your-gemini-api-key
 
 **注意**：本项目使用 **Vertex AI Express Mode**，支持使用 API Key 访问 Vertex AI 服务。这对于无法直接访问 Google AI Studio 的地区特别有用。
 
+### 配置阿里云 OSS（必需）
+
+本项目需要阿里云 OSS 来存储图片，以便 Gemini Veo API 可以通过 URL 访问图片生成视频。
+
+```bash
+export ALIYUN_OSS_ENDPOINT="oss-cn-hangzhou.aliyuncs.com"
+export ALIYUN_OSS_ACCESS_KEY_ID="your-access-key-id"
+export ALIYUN_OSS_ACCESS_KEY_SECRET="your-access-key-secret"
+export ALIYUN_OSS_BUCKET_NAME="your-bucket-name"
+```
+
+详细配置步骤请参考 [OSS_SETUP.md](OSS_SETUP.md)。
+
 ### 3. 构建项目
 
 ```bash

@@ -19,6 +19,7 @@ public class GeminiService {
     private static final Logger logger = LoggerFactory.getLogger(GeminiService.class);
     private final Client client;
     private final AppConfig config;
+    private final OSSService ossService;
 
     public GeminiService() {
         this.config = AppConfig.getInstance();
@@ -34,6 +35,9 @@ public class GeminiService {
                 .apiKey(apiKey)
                 .vertexAI(true)  // 启用 Vertex AI Express Mode
                 .build();
+        
+        // 初始化 OSS 服务
+        this.ossService = new OSSService();
         
         logger.info("GeminiService initialized with Vertex AI Express Mode");
     }
@@ -135,7 +139,14 @@ public class GeminiService {
     public String generateVideoFromImage(String prompt, String keyframeImagePath, String outputPath) throws Exception {
         logger.info("Generating video from image. Prompt: {}, Keyframe: {}", prompt, keyframeImagePath);
         
-        Image keyframeImage = Image.fromFile(keyframeImagePath);
+        // 先将图片上传到 OSS 获取公开 URL
+        String imageUrl = ossService.uploadFile(keyframeImagePath, null);
+        logger.info("Keyframe image uploaded to OSS: {}", imageUrl);
+        
+        // 使用 Builder 创建 Image 对象，设置 gcsUri
+        Image keyframeImage = Image.builder()
+                .gcsUri(imageUrl)
+                .build();
         
         GenerateVideosConfig config = GenerateVideosConfig.builder()
                 .numberOfVideos(this.config.getVeoNumberOfVideos())
@@ -234,6 +245,10 @@ public class GeminiService {
      * 关闭客户端连接
      */
     public void close() {
+        // 关闭 OSS 服务
+        if (ossService != null) {
+            ossService.close();
+        }
         // 如果 Client 有关闭方法，在这里调用
         logger.info("GeminiService closed");
     }
