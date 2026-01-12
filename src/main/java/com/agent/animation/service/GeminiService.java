@@ -21,6 +21,7 @@ public class GeminiService {
     private final Client client;
     private final AppConfig config;
     private final OSSService ossService;
+    private final GCSService gcsService;
 
     public GeminiService() {
         this.config = AppConfig.getInstance();
@@ -37,10 +38,12 @@ public class GeminiService {
                 .vertexAI(true)  // 启用 Vertex AI Express Mode
                 .build();
         
-        // 初始化 OSS 服务
+        // 初始化 OSS 服务（保留以供其他用途）
         this.ossService = new OSSService();
+        // 初始化 GCS 服务（用于 Vertex AI 原生集成）
+        this.gcsService = new GCSService();
         
-        logger.info("GeminiService initialized with Vertex AI Express Mode");
+        logger.info("GeminiService initialized with Vertex AI Express Mode and GCS");
     }
 
     /**
@@ -143,16 +146,15 @@ public class GeminiService {
      */
     public String generateVideoFromImage(String prompt, String keyframeImagePath, String outputPath) throws Exception {
         return RetryUtils.executeWithRetry(() -> {
-            logger.info("Generating video from image. Prompt: {}, Keyframe: {}", prompt, keyframeImagePath);
+            logger.info("Generating video from image using GCS. Prompt: {}, Keyframe: {}", prompt, keyframeImagePath);
             
-            // 读取本地图片文件为字节数组
-            byte[] imageBytes = FileUtils.readFileToByteArray(new File(keyframeImagePath));
-            logger.info("Read keyframe image: {} bytes", imageBytes.length);
+            // 1. 将图片上传到 GCS 获取 gs:// URI
+            // 这是 Vertex AI 最推荐的原生集成方式，能有效避免 400 错误
+            String gcsUri = gcsService.uploadFile(keyframeImagePath, null);
             
-            // 使用 Builder 创建 Image 对象，直接设置图片字节数据
-            // 这样可以避免对 GCS 或外部 URL 的依赖，解决 400 Invalid resource 错误
+            // 2. 使用 Builder 创建 Image 对象，设置 gcsUri
             Image keyframeImage = Image.builder()
-                    .imageBytes(imageBytes)
+                    .gcsUri(gcsUri)
                     .build();
             
             GenerateVideosConfig config = GenerateVideosConfig.builder()
@@ -256,6 +258,10 @@ public class GeminiService {
         // 关闭 OSS 服务
         if (ossService != null) {
             ossService.close();
+        }
+        // 关闭 GCS 服务
+        if (gcsService != null) {
+            gcsService.close();
         }
         // 如果 Client 有关闭方法，在这里调用
         logger.info("GeminiService closed");
