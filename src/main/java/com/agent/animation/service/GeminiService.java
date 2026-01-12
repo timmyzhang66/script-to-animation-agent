@@ -198,7 +198,7 @@ public class GeminiService {
     private void saveImage(Image image, String outputPath) throws IOException {
         // 假设 Image 对象包含 base64 编码的数据或字节数组
         // 根据实际 API 返回格式调整
-        byte[] imageData = image.bytes();
+        byte[] imageData = image.imageBytes().get();
         FileUtils.writeByteArrayToFile(new File(outputPath), imageData);
         logger.debug("Image saved to: {}", outputPath);
     }
@@ -213,7 +213,7 @@ public class GeminiService {
     private void saveVideo(Video video, String outputPath) throws IOException {
         // 假设 Video 对象包含字节数组或 URL
         // 根据实际 API 返回格式调整
-        byte[] videoData = video.bytes();
+        byte[] videoData = video.videoBytes().get();
         FileUtils.writeByteArrayToFile(new File(outputPath), videoData);
         logger.debug("Video saved to: {}", outputPath);
     }
