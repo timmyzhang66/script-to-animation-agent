@@ -8,6 +8,7 @@ public class Character {
     private String name;
     private String description;
     private String imagePath;
+    private String imageUrl;  // GCS URL 或公开 URL
 
     public Character() {
     }
@@ -15,6 +16,13 @@ public class Character {
     public Character(String name, String description) {
         this.name = name;
         this.description = description;
+    }
+    
+    public Character(String name, String description, String imagePath, String imageUrl) {
+        this.name = name;
+        this.description = description;
+        this.imagePath = imagePath;
+        this.imageUrl = imageUrl;
     }
 
     public String getName() {
@@ -40,6 +48,14 @@ public class Character {
     public void setImagePath(String imagePath) {
         this.imagePath = imagePath;
     }
+    
+    public String getImageUrl() {
+        return imageUrl;
+    }
+    
+    public void setImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
+    }
 
     @Override
     public String toString() {
@@ -47,6 +63,7 @@ public class Character {
                 "name='" + name + '\'' +
                 ", description='" + description + '\'' +
                 ", imagePath='" + imagePath + '\'' +
+                ", imageUrl='" + imageUrl + '\'' +
                 '}';
     }
 }

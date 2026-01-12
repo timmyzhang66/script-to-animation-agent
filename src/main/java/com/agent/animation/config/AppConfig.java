@@ -182,4 +182,26 @@ public class AppConfig {
     public String getGcpServiceAccountKeyPath() {
         return getProperty("gcp.service.account.key.path");
     }
+    
+    // Nano Banana Pro 配置
+    public String getNanoBananaProModel() {
+        return getProperty("nano.banana.pro.model", "gemini-3-pro-image-preview");
+    }
+    
+    public boolean getNanoBananaProUseGoogleSearch() {
+        return getBooleanProperty("nano.banana.pro.use.google.search", false);
+    }
+    
+    public String getNanoBananaProAspectRatio() {
+        return getProperty("nano.banana.pro.aspect.ratio", "16:9");
+    }
+    
+    public String getNanoBananaProResolution() {
+        return getProperty("nano.banana.pro.resolution", "2K");
+    }
+    
+    // Gemini 3 Flash 配置
+    public String getGemini3FlashModel() {
+        return getProperty("gemini.3.flash.model", "gemini-3.0-flash");
+    }
 }

@@ -17,17 +17,10 @@ public class AnimationAgent {
     private final WorkflowEngine workflowEngine;
     private final AppConfig config;
 
-    public AnimationAgent() {
+    public AnimationAgent() throws Exception {
         this.config = AppConfig.getInstance();
         this.workflowEngine = new WorkflowEngine();
-        initializeWorkflow();
-        ensureDirectories();
-    }
-
-    /**
-     * 初始化工作流步骤
-     */
-    private void initializeWorkflow() {
+        
         logger.info("Initializing workflow steps...");
         
         // 添加所有工作流步骤

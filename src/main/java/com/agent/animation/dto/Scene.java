@@ -10,6 +10,7 @@ public class Scene {
     private String visualDescription;
     private String dialogue;
     private String keyframePath;
+    private String keyframeUrl;  // GCS URL 或公开 URL
     private String videoPath;
 
     public Scene() {
@@ -18,6 +19,14 @@ public class Scene {
     public Scene(int sceneNumber, String description) {
         this.sceneNumber = sceneNumber;
         this.description = description;
+    }
+    
+    public Scene(int sceneNumber, String description, String visualDescription, String keyframePath, String keyframeUrl) {
+        this.sceneNumber = sceneNumber;
+        this.description = description;
+        this.visualDescription = visualDescription;
+        this.keyframePath = keyframePath;
+        this.keyframeUrl = keyframeUrl;
     }
 
     public int getSceneNumber() {
@@ -59,6 +68,14 @@ public class Scene {
     public void setKeyframePath(String keyframePath) {
         this.keyframePath = keyframePath;
     }
+    
+    public String getKeyframeUrl() {
+        return keyframeUrl;
+    }
+    
+    public void setKeyframeUrl(String keyframeUrl) {
+        this.keyframeUrl = keyframeUrl;
+    }
 
     public String getVideoPath() {
         return videoPath;
@@ -74,6 +91,7 @@ public class Scene {
                 "sceneNumber=" + sceneNumber +
                 ", description='" + description + '\'' +
                 ", keyframePath='" + keyframePath + '\'' +
+                ", keyframeUrl='" + keyframeUrl + '\'' +
                 ", videoPath='" + videoPath + '\'' +
                 '}';
     }

@@ -44,6 +44,19 @@ public class GCSService {
      * @throws IOException 上传失败时抛出异常
      */
     public String uploadFile(String localFilePath, String objectName) throws IOException {
+        return uploadFile(localFilePath, objectName, false);
+    }
+    
+    /**
+     * 上传本地文件到 GCS
+     * 
+     * @param localFilePath 本地文件路径
+     * @param objectName GCS 中的对象名称（如果为 null 则自动生成）
+     * @param makePublic 是否设置为公开访问
+     * @return GCS URI (gs://bucket/object) 或公开 URL
+     * @throws IOException 上传失败时抛出异常
+     */
+    public String uploadFile(String localFilePath, String objectName, boolean makePublic) throws IOException {
         if (objectName == null || objectName.isEmpty()) {
             String extension = "";
             int i = localFilePath.lastIndexOf('.');
@@ -60,6 +73,17 @@ public class GCSService {
         
         storage.create(blobInfo, Files.readAllBytes(Paths.get(localFilePath)));
         
+        // 如果需要公开访问，设置 ACL
+        if (makePublic) {
+            storage.createAcl(blobId, com.google.cloud.storage.Acl.of(
+                com.google.cloud.storage.Acl.User.ofAllUsers(), 
+                com.google.cloud.storage.Acl.Role.READER
+            ));
+            String publicUrl = String.format("https://storage.googleapis.com/%s/%s", bucketName, objectName);
+            logger.info("File uploaded successfully to GCS with public URL: {}", publicUrl);
+            return publicUrl;
+        }
+        
         String gcsUri = String.format("gs://%s/%s", bucketName, objectName);
         logger.info("File uploaded successfully to GCS: {}", gcsUri);
         
@@ -74,6 +98,18 @@ public class GCSService {
      * @return GCS URI (gs://bucket/object)
      */
     public String uploadBytes(byte[] data, String fileName) {
+        return uploadBytes(data, fileName, false);
+    }
+    
+    /**
+     * 上传字节数组到 GCS
+     * 
+     * @param data 字节数据
+     * @param fileName 文件名
+     * @param makePublic 是否设置为公开访问
+     * @return GCS URI (gs://bucket/object) 或公开 URL
+     */
+    public String uploadBytes(byte[] data, String fileName, boolean makePublic) {
         String objectName = "assets/" + UUID.randomUUID().toString() + "_" + fileName;
         logger.info("Uploading bytes to GCS: gs://{}/{}", bucketName, objectName);
         
@@ -81,6 +117,17 @@ public class GCSService {
         BlobInfo blobInfo = BlobInfo.newBuilder(blobId).build();
         
         storage.create(blobInfo, data);
+        
+        // 如果需要公开访问，设置 ACL
+        if (makePublic) {
+            storage.createAcl(blobId, com.google.cloud.storage.Acl.of(
+                com.google.cloud.storage.Acl.User.ofAllUsers(), 
+                com.google.cloud.storage.Acl.Role.READER
+            ));
+            String publicUrl = String.format("https://storage.googleapis.com/%s/%s", bucketName, objectName);
+            logger.info("Bytes uploaded successfully to GCS with public URL: {}", publicUrl);
+            return publicUrl;
+        }
         
         String gcsUri = String.format("gs://%s/%s", bucketName, objectName);
         logger.info("Bytes uploaded successfully to GCS: {}", gcsUri);
