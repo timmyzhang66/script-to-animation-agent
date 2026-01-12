@@ -3,7 +3,7 @@ package com.agent.animation.workflow;
 import com.agent.animation.config.AppConfig;
 import com.agent.animation.dto.Character;
 import com.agent.animation.service.GeminiService;
-import com.agent.animation.service.OpenAIService;
+import com.agent.animation.service.GeminiTextService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -15,12 +15,12 @@ import java.io.File;
  */
 public class CharacterGenerationStep implements WorkflowStep {
     private static final Logger logger = LoggerFactory.getLogger(CharacterGenerationStep.class);
-    private final OpenAIService openAIService;
+    private final GeminiTextService geminiTextService;
     private final GeminiService geminiService;
     private final AppConfig config;
 
     public CharacterGenerationStep() {
-        this.openAIService = new OpenAIService();
+        this.geminiTextService = new GeminiTextService();
         this.geminiService = new GeminiService();
         this.config = AppConfig.getInstance();
     }
@@ -31,9 +31,9 @@ public class CharacterGenerationStep implements WorkflowStep {
         
         String scriptContent = context.getScriptInput().getScriptContent();
         
-        // 1. 使用 OpenAI 提取主要角色描述
+        // 1. 使用 Gemini 提取主要角色描述
         logger.info("Extracting main character description from script");
-        String characterDescription = openAIService.extractMainCharacter(scriptContent);
+        String characterDescription = geminiTextService.extractCharacterDescription(scriptContent);
         
         // 2. 创建角色对象
         Character mainCharacter = new Character("Main Character", characterDescription);

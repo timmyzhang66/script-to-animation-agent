@@ -34,13 +34,9 @@ public class AppConfig {
             
             // 从环境变量加载敏感配置
             String geminiKey = System.getenv("GEMINI_API_KEY");
-            String openaiKey = System.getenv("OPENAI_API_KEY");
             
             if (geminiKey != null) {
                 properties.setProperty("gemini.api.key", geminiKey);
-            }
-            if (openaiKey != null) {
-                properties.setProperty("openai.api.key", openaiKey);
             }
         } catch (IOException e) {
             throw new RuntimeException("Failed to load application properties", e);
@@ -88,13 +84,8 @@ public class AppConfig {
         return getProperty("gemini.veo.model", "veo-2.0-generate-001");
     }
 
-    // OpenAI 配置
-    public String getOpenAiApiKey() {
-        return getProperty("openai.api.key");
-    }
-
-    public String getGptModel() {
-        return getProperty("openai.gpt.model", "gpt-4.1-mini");
+    public String getTextModel() {
+        return getProperty("gemini.text.model", "gemini-2.0-flash-exp");
     }
 
     // 图像生成配置

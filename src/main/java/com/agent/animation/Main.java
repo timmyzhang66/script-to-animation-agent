@@ -67,16 +67,10 @@ public class Main {
      */
     private static void checkEnvironmentVariables() {
         String geminiKey = System.getenv("GEMINI_API_KEY");
-        String openaiKey = System.getenv("OPENAI_API_KEY");
         
         if (geminiKey == null || geminiKey.trim().isEmpty()) {
             logger.warn("GEMINI_API_KEY environment variable is not set");
-            System.err.println("Warning: GEMINI_API_KEY is not set. Image and video generation may fail.");
-        }
-        
-        if (openaiKey == null || openaiKey.trim().isEmpty()) {
-            logger.warn("OPENAI_API_KEY environment variable is not set");
-            System.err.println("Warning: OPENAI_API_KEY is not set. Script analysis may fail.");
+            System.err.println("Warning: GEMINI_API_KEY is not set. All AI operations will fail.");
         }
     }
 
@@ -166,7 +160,6 @@ public class Main {
         System.out.println("\nIf no arguments provided, interactive mode will start.");
         System.out.println("\nEnvironment Variables:");
         System.out.println("  GEMINI_API_KEY       API key for Google Gemini (required)");
-        System.out.println("  OPENAI_API_KEY       API key for OpenAI (required)");
         System.out.println("\nExample:");
         System.out.println("  java -jar script-to-animation-agent.jar -f my_script.txt");
         System.out.println();

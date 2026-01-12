@@ -16,7 +16,7 @@
 
 3. **API Keys** 已准备
    - Google Gemini API Key
-   - OpenAI API Key
+   - Gemini API Key
 
 ## 5 分钟快速开始
 
@@ -205,7 +205,7 @@ openai.gpt.model=gpt-4
 1. 提供更详细的场景描述
 2. 明确指定颜色、光照、构图
 3. 在第一个场景详细描述角色外观
-4. 使用更高级的 AI 模型（如 GPT-4）
+4. 使用更高级的 AI 模型（如 Gemini Text Model-4）
 
 ### Q: 如何查看详细日志？
 

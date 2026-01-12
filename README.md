@@ -1,6 +1,6 @@
 # Script to Animation Agent
 
-一个基于 Java 的 AI Agent 程序，能够自动将用户提供的脚本转换为动画视频。该系统使用 Google Gemini API 进行图像和视频生成，使用 OpenAI API 进行脚本分析和分镜处理。
+一个基于 Java 的 AI Agent 程序，能够自动将用户提供的脚本转换为动画视频。该系统完全使用 Google Gemini API 进行文本分析、图像生成和视频生成。
 
 ## 功能特性
 
@@ -15,8 +15,7 @@
 ### 核心技术栈
 
 - **Java 17**：主要编程语言
-- **Google Gen AI SDK**：用于 Imagen（图像生成）和 Veo（视频生成）
-- **OpenAI Java SDK**：用于 GPT 模型进行文本分析
+- **Google Gen AI SDK**：用于 Gemini 文本模型、Imagen（图像生成）和 Veo（视频生成）
 - **JavaCV (FFmpeg)**：用于视频处理和拼接
 - **Maven**：项目构建和依赖管理
 
@@ -25,11 +24,11 @@
 ```
 用户输入脚本
     ↓
-1. 角色生成 (OpenAI GPT + Gemini Imagen)
+1. 角色生成 (Gemini Text + Gemini Imagen)
    - 提取主要角色描述
    - 生成角色参考图像
     ↓
-2. 分镜处理 (OpenAI GPT)
+2. 分镜处理 (Gemini Text)
    - 将脚本分解为场景
    - 生成每个场景的视觉描述
     ↓
@@ -65,7 +64,7 @@ script-to-animation-agent/
 │   │   │       │   └── Storyboard.java
 │   │   │       ├── service/            # AI 服务层
 │   │   │       │   ├── GeminiService.java
-│   │   │       │   ├── OpenAIService.java
+│   │   │       │   ├── GeminiTextService.java
 │   │   │       │   └── VideoProcessingService.java
 │   │   │       ├── workflow/           # 工作流引擎
 │   │   │       │   ├── WorkflowEngine.java
@@ -93,7 +92,6 @@ script-to-animation-agent/
 - **Maven 3.6+**
 - **API Keys**：
   - Google Gemini API Key
-  - OpenAI API Key
 
 ## 安装与配置
 
@@ -109,14 +107,12 @@ cd script-to-animation-agent
 
 ```bash
 export GEMINI_API_KEY="your-gemini-api-key"
-export OPENAI_API_KEY="your-openai-api-key"
 ```
 
 或者在 Windows 上：
 
 ```cmd
 set GEMINI_API_KEY=your-gemini-api-key
-set OPENAI_API_KEY=your-openai-api-key
 ```
 
 ### 3. 构建项目
@@ -166,8 +162,6 @@ java -jar target/script-to-animation-agent-1.0.0.jar --help
 gemini.imagen.model=imagen-3.0-generate-002
 gemini.veo.model=veo-2.0-generate-001
 
-# OpenAI 模型
-openai.gpt.model=gpt-4.1-mini
 ```
 
 ### 图像生成配置
@@ -288,7 +282,7 @@ Dialogue: "[对话内容]"
 主要依赖库：
 
 - `com.google.genai:google-genai:1.34.0` - Google Gen AI SDK
-- `com.openai:openai-java:0.18.2` - OpenAI Java SDK
+
 - `org.bytedeco:javacv-platform:1.5.10` - JavaCV (FFmpeg)
 - `com.google.code.gson:gson:2.10.1` - JSON 处理
 - `ch.qos.logback:logback-classic:1.4.11` - 日志框架
@@ -332,4 +326,4 @@ Apache License 2.0
 
 ---
 
-**注意**：本项目需要有效的 Google Gemini 和 OpenAI API Keys。视频生成是计算密集型操作，可能产生 API 使用费用。请合理使用并监控您的 API 配额。
+**注意**：本项目需要有效的 Google Gemini API Key。视频生成是计算密集型操作，可能产生 API 使用费用。请合理使用并监控您的 API 配额。

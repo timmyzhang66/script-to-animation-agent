@@ -41,14 +41,14 @@ Script to Animation Agent 是一个基于 Java 的智能系统，使用 AI 技�
 ┌─────────────────────────────────────────┐
 │         Service Layer                   │
 │  - GeminiService                        │
-│  - OpenAIService                        │
+│  - GeminiService                        │
 │  - VideoProcessingService               │
 └─────────────────────────────────────────┘
                    ↓
 ┌─────────────────────────────────────────┐
 │         External APIs                   │
 │  - Google Gemini API                    │
-│  - OpenAI API                           │
+│  - Gemini API                           │
 │  - FFmpeg                               │
 └─────────────────────────────────────────┘
 ```
@@ -95,14 +95,14 @@ Script to Animation Agent 是一个基于 Java 的智能系统，使用 AI 技�
 #### CharacterGenerationStep
 - **职责**：生成主要角色
 - **流程**：
-  1. 使用 OpenAI 提取角色描述
+  1. 使用 Gemini 提取角色描述
   2. 使用 Gemini Imagen 生成角色图像
   3. 保存角色信息到上下文
 
 #### StoryboardGenerationStep
 - **职责**：生成分镜
 - **流程**：
-  1. 使用 OpenAI 分解脚本为场景
+  1. 使用 Gemini 分解脚本为场景
   2. 解析 JSON 响应
   3. 为每个场景生成视觉描述
   4. 保存分镜到上下文
@@ -141,8 +141,8 @@ Script to Animation Agent 是一个基于 Java 的智能系统，使用 AI 技�
   - 图像生成视频
   - 异步操作轮询
 
-#### OpenAIService
-- **职责**：封装 OpenAI API 调用
+#### GeminiService
+- **职责**：封装 Gemini API 调用
 - **功能**：
   - 提取角色描述
   - 生成分镜

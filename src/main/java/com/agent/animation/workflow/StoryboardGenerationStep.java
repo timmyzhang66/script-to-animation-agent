@@ -2,7 +2,7 @@ package com.agent.animation.workflow;
 
 import com.agent.animation.dto.Scene;
 import com.agent.animation.dto.Storyboard;
-import com.agent.animation.service.OpenAIService;
+import com.agent.animation.service.GeminiTextService;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -15,11 +15,11 @@ import org.slf4j.LoggerFactory;
  */
 public class StoryboardGenerationStep implements WorkflowStep {
     private static final Logger logger = LoggerFactory.getLogger(StoryboardGenerationStep.class);
-    private final OpenAIService openAIService;
+    private final GeminiTextService geminiTextService;
     private final Gson gson;
 
     public StoryboardGenerationStep() {
-        this.openAIService = new OpenAIService();
+        this.geminiTextService = new GeminiTextService();
         this.gson = new Gson();
     }
 
@@ -29,9 +29,9 @@ public class StoryboardGenerationStep implements WorkflowStep {
         
         String scriptContent = context.getScriptInput().getScriptContent();
         
-        // 1. 使用 OpenAI 生成分镜
-        logger.info("Generating storyboard with OpenAI");
-        String storyboardJson = openAIService.generateStoryboard(scriptContent);
+        // 1. 使用 Gemini 生成分镜
+        logger.info("Generating storyboard with Gemini");
+        String storyboardJson = geminiTextService.generateStoryboard(scriptContent);
         
         // 2. 解析 JSON 响应
         Storyboard storyboard = parseStoryboard(storyboardJson);
@@ -40,7 +40,7 @@ public class StoryboardGenerationStep implements WorkflowStep {
         String characterDescription = context.getMainCharacter().getDescription();
         for (Scene scene : storyboard.getScenes()) {
             logger.info("Generating visual description for scene {}", scene.getSceneNumber());
-            String visualDescription = openAIService.generateVisualDescription(
+            String visualDescription = geminiTextService.enhanceVisualDescription(
                     scene.getDescription(),
                     characterDescription
             );
@@ -62,10 +62,24 @@ public class StoryboardGenerationStep implements WorkflowStep {
      */
     private Storyboard parseStoryboard(String jsonString) throws Exception {
         try {
-            // 提取 JSON 数组（可能被包裹在代码块中）
-            String cleanJson = extractJsonArray(jsonString);
+            // 清理 JSON 字符串
+            String cleanJson = jsonString.trim();
             
-            JsonArray jsonArray = gson.fromJson(cleanJson, JsonArray.class);
+            // 移除 Markdown 代码块标记
+            if (cleanJson.startsWith("```json")) {
+                cleanJson = cleanJson.substring(7);
+            } else if (cleanJson.startsWith("```")) {
+                cleanJson = cleanJson.substring(3);
+            }
+            if (cleanJson.endsWith("```")) {
+                cleanJson = cleanJson.substring(0, cleanJson.length() - 3);
+            }
+            cleanJson = cleanJson.trim();
+            
+            // 解析 JSON 对象
+            JsonObject rootObj = gson.fromJson(cleanJson, JsonObject.class);
+            JsonArray jsonArray = rootObj.getAsJsonArray("scenes");
+            
             Storyboard storyboard = new Storyboard();
             
             for (int i = 0; i < jsonArray.size(); i++) {
@@ -93,41 +107,6 @@ public class StoryboardGenerationStep implements WorkflowStep {
             logger.error("Failed to parse storyboard JSON", e);
             throw new Exception("Failed to parse storyboard: " + e.getMessage(), e);
         }
-    }
-
-    /**
-     * 从响应中提取 JSON 数组
-     * 处理可能的 Markdown 代码块包裹
-     * 
-     * @param response 原始响应
-     * @return 清理后的 JSON 字符串
-     */
-    private String extractJsonArray(String response) {
-        String cleaned = response.trim();
-        
-        // 移除 Markdown 代码块标记
-        if (cleaned.startsWith("```json")) {
-            cleaned = cleaned.substring(7);
-        } else if (cleaned.startsWith("```")) {
-            cleaned = cleaned.substring(3);
-        }
-        
-        if (cleaned.endsWith("```")) {
-            cleaned = cleaned.substring(0, cleaned.length() - 3);
-        }
-        
-        cleaned = cleaned.trim();
-        
-        // 确保是 JSON 数组
-        if (!cleaned.startsWith("[")) {
-            // 尝试查找第一个 [
-            int startIndex = cleaned.indexOf('[');
-            if (startIndex != -1) {
-                cleaned = cleaned.substring(startIndex);
-            }
-        }
-        
-        return cleaned;
     }
 
     @Override
