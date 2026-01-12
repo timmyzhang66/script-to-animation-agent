@@ -118,6 +118,21 @@ public class AppConfig {
         return getIntProperty("veo.max.wait.minutes", 30);
     }
 
+    // 重试配置
+    public int getMaxRetryAttempts() {
+        return getIntProperty("retry.max.attempts", 5);
+    }
+
+    public long getInitialRetryDelayMs() {
+        String value = getProperty("retry.initial.delay.ms");
+        return value != null ? Long.parseLong(value) : 5000L;
+    }
+
+    public long getMaxRetryDelayMs() {
+        String value = getProperty("retry.max.delay.ms");
+        return value != null ? Long.parseLong(value) : 60000L;
+    }
+
     // 存储配置
     public String getTempDir() {
         return getProperty("storage.temp.dir", "./temp");

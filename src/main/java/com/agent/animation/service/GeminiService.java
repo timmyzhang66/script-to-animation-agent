@@ -1,6 +1,7 @@
 package com.agent.animation.service;
 
 import com.agent.animation.config.AppConfig;
+import com.agent.animation.util.RetryUtils;
 import com.google.genai.Client;
 import com.google.genai.types.*;
 import org.apache.commons.io.FileUtils;
@@ -51,29 +52,31 @@ public class GeminiService {
      * @throws Exception 生成失败时抛出异常
      */
     public String generateImage(String prompt, String outputPath) throws Exception {
-        logger.info("Generating image with prompt: {}", prompt);
-        
-        GenerateImagesConfig config = GenerateImagesConfig.builder()
-                .numberOfImages(this.config.getImagenNumberOfImages())
-                .outputMimeType(this.config.getImagenOutputMimeType())
-                .includeSafetyAttributes(true)
-                .build();
+        return RetryUtils.executeWithRetry(() -> {
+            logger.info("Generating image with prompt: {}", prompt);
+            
+            GenerateImagesConfig config = GenerateImagesConfig.builder()
+                    .numberOfImages(this.config.getImagenNumberOfImages())
+                    .outputMimeType(this.config.getImagenOutputMimeType())
+                    .includeSafetyAttributes(true)
+                    .build();
 
-        GenerateImagesResponse response = client.models.generateImages(
-                this.config.getImagenModel(),
-                prompt,
-                config
-        );
+            GenerateImagesResponse response = client.models.generateImages(
+                    this.config.getImagenModel(),
+                    prompt,
+                    config
+            );
 
-        if (response.images().isEmpty()) {
-            throw new Exception("Unable to generate image for prompt: " + prompt);
-        }
+            if (response.images().isEmpty()) {
+                throw new Exception("Unable to generate image for prompt: " + prompt);
+            }
 
-        Image generatedImage = response.images().get(0);
-        saveImage(generatedImage, outputPath);
-        
-        logger.info("Image generated successfully: {}", outputPath);
-        return outputPath;
+            Image generatedImage = response.images().get(0);
+            saveImage(generatedImage, outputPath);
+            
+            logger.info("Image generated successfully: {}", outputPath);
+            return outputPath;
+        });
     }
 
     /**
@@ -109,22 +112,24 @@ public class GeminiService {
      * @throws Exception 生成失败时抛出异常
      */
     public String generateVideoFromText(String prompt, String outputPath) throws Exception {
-        logger.info("Generating video from text. Prompt: {}", prompt);
-        
-        GenerateVideosConfig config = GenerateVideosConfig.builder()
-                .numberOfVideos(this.config.getVeoNumberOfVideos())
-                .enhancePrompt(this.config.getVeoEnhancePrompt())
-                .durationSeconds(this.config.getVeoDurationSeconds())
-                .build();
+        return RetryUtils.executeWithRetry(() -> {
+            logger.info("Generating video from text. Prompt: {}", prompt);
+            
+            GenerateVideosConfig config = GenerateVideosConfig.builder()
+                    .numberOfVideos(this.config.getVeoNumberOfVideos())
+                    .enhancePrompt(this.config.getVeoEnhancePrompt())
+                    .durationSeconds(this.config.getVeoDurationSeconds())
+                    .build();
 
-        GenerateVideosOperation operation = client.models.generateVideos(
-                this.config.getVeoModel(),
-                prompt,
-                null,
-                config
-        );
+            GenerateVideosOperation operation = client.models.generateVideos(
+                    this.config.getVeoModel(),
+                    prompt,
+                    null,
+                    config
+            );
 
-        return waitForVideoOperation(operation, outputPath);
+            return waitForVideoOperation(operation, outputPath);
+        });
     }
 
     /**
@@ -137,31 +142,33 @@ public class GeminiService {
      * @throws Exception 生成失败时抛出异常
      */
     public String generateVideoFromImage(String prompt, String keyframeImagePath, String outputPath) throws Exception {
-        logger.info("Generating video from image. Prompt: {}, Keyframe: {}", prompt, keyframeImagePath);
-        
-        // 先将图片上传到 OSS 获取公开 URL
-        String imageUrl = ossService.uploadFile(keyframeImagePath, null);
-        logger.info("Keyframe image uploaded to OSS: {}", imageUrl);
-        
-        // 使用 Builder 创建 Image 对象，设置 gcsUri
-        Image keyframeImage = Image.builder()
-                .gcsUri(imageUrl)
-                .build();
-        
-        GenerateVideosConfig config = GenerateVideosConfig.builder()
-                .numberOfVideos(this.config.getVeoNumberOfVideos())
-                .enhancePrompt(this.config.getVeoEnhancePrompt())
-                .durationSeconds(this.config.getVeoDurationSeconds())
-                .build();
+        return RetryUtils.executeWithRetry(() -> {
+            logger.info("Generating video from image. Prompt: {}, Keyframe: {}", prompt, keyframeImagePath);
+            
+            // 先将图片上传到 OSS 获取公开 URL
+            String imageUrl = ossService.uploadFile(keyframeImagePath, null);
+            logger.info("Keyframe image uploaded to OSS: {}", imageUrl);
+            
+            // 使用 Builder 创建 Image 对象，设置 gcsUri
+            Image keyframeImage = Image.builder()
+                    .gcsUri(imageUrl)
+                    .build();
+            
+            GenerateVideosConfig config = GenerateVideosConfig.builder()
+                    .numberOfVideos(this.config.getVeoNumberOfVideos())
+                    .enhancePrompt(this.config.getVeoEnhancePrompt())
+                    .durationSeconds(this.config.getVeoDurationSeconds())
+                    .build();
 
-        GenerateVideosOperation operation = client.models.generateVideos(
-                this.config.getVeoModel(),
-                prompt,
-                keyframeImage,
-                config
-        );
+            GenerateVideosOperation operation = client.models.generateVideos(
+                    this.config.getVeoModel(),
+                    prompt,
+                    keyframeImage,
+                    config
+            );
 
-        return waitForVideoOperation(operation, outputPath);
+            return waitForVideoOperation(operation, outputPath);
+        });
     }
 
     /**

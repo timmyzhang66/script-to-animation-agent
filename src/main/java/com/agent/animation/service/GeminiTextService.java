@@ -1,6 +1,7 @@
 package com.agent.animation.service;
 
 import com.agent.animation.config.AppConfig;
+import com.agent.animation.util.RetryUtils;
 import com.google.genai.Client;
 import com.google.genai.types.GenerateContentConfig;
 import com.google.genai.types.GenerateContentResponse;
@@ -46,41 +47,43 @@ public class GeminiTextService {
      * @throws Exception 如果 API 调用失败
      */
     public String generateText(String systemPrompt, String userPrompt) throws Exception {
-        try {
-            logger.info("Generating text with Gemini model: {}", modelName);
-            
-            // 构建完整的提示词
-            String fullPrompt = systemPrompt + "\n\n" + userPrompt;
-            
-            // 配置生成参数
-            GenerateContentConfig contentConfig = GenerateContentConfig.builder()
-                    .temperature(0.7f)
-                    .topK(40f)
-                    .topP(0.95f)
-                    .maxOutputTokens(8192)
-                    .build();
-            
-            // 调用 API
-            GenerateContentResponse response = client.models.generateContent(
-                    modelName, 
-                    fullPrompt, 
-                    contentConfig
-            );
-            
-            // 提取响应文本
-            String responseText = response.text();
-            
-            if (responseText == null || responseText.trim().isEmpty()) {
-                throw new Exception("Empty content returned from Gemini");
+        return RetryUtils.executeWithRetry(() -> {
+            try {
+                logger.info("Generating text with Gemini model: {}", modelName);
+                
+                // 构建完整的提示词
+                String fullPrompt = systemPrompt + "\n\n" + userPrompt;
+                
+                // 配置生成参数
+                GenerateContentConfig contentConfig = GenerateContentConfig.builder()
+                        .temperature(0.7f)
+                        .topK(40f)
+                        .topP(0.95f)
+                        .maxOutputTokens(8192)
+                        .build();
+                
+                // 调用 API
+                GenerateContentResponse response = client.models.generateContent(
+                        modelName, 
+                        fullPrompt, 
+                        contentConfig
+                );
+                
+                // 提取响应文本
+                String responseText = response.text();
+                
+                if (responseText == null || responseText.trim().isEmpty()) {
+                    throw new Exception("Empty content returned from Gemini");
+                }
+                
+                logger.info("Text generation completed, length: {} characters", responseText.length());
+                return responseText.trim();
+                
+            } catch (Exception e) {
+                logger.error("Gemini API call failed: {}", e.getMessage());
+                throw e;
             }
-            
-            logger.info("Text generation completed, length: {} characters", responseText.length());
-            return responseText.trim();
-            
-        } catch (Exception e) {
-            logger.error("Gemini API call failed", e);
-            throw new Exception("Gemini API call failed: " + e.getMessage(), e);
-        }
+        });
     }
 
     /**
