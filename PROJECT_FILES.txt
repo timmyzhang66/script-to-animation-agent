@@ -1,0 +1,19 @@
+.
+├── ARCHITECTURE.md
+├── PROJECT_FILES.txt
+├── QUICKSTART.md
+├── README.md
+├── example_script.txt
+├── pom.xml
+├── run.sh
+└── src
+    ├── main
+    │   ├── java
+    │   │   └── com
+    │   └── resources
+    │       ├── application.properties
+    │       └── logback.xml
+    └── test
+        └── java
+
+7 directories, 9 files
