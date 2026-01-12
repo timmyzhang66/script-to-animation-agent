@@ -152,22 +152,28 @@ public class GeminiService {
             byte[] imageBytes = FileUtils.readFileToByteArray(new File(keyframeImagePath));
             logger.info("Read keyframe image: {} bytes", imageBytes.length);
             
-            // 使用 Builder 创建 Image 对象，直接设置图片字节数据
-            // 这样可以避免对 GCS 权限的依赖，解决 400 Invalid resource 错误
-            Image keyframeImage = Image.builder()
-                    .imageBytes(imageBytes)
+            // 使用 Image.fromFile 创建 Image 对象
+            // 注意：这里需要使用文件路径，而不是字节数组
+            Image keyframeImage = Image.fromFile(keyframeImagePath, "image/jpeg");
+            
+            // 使用 GenerateVideosSource 包装 prompt 和 image
+            // 这是官方 Java SDK 的正确用法
+            GenerateVideosSource source = GenerateVideosSource.builder()
+                    .prompt(prompt)
+                    .image(keyframeImage)
                     .build();
             
+            // 使用正确的配置参数：aspectRatio, resolution, generateAudio
+            // 而不是 numberOfVideos, enhancePrompt, durationSeconds
             GenerateVideosConfig config = GenerateVideosConfig.builder()
-                    .numberOfVideos(this.config.getVeoNumberOfVideos())
-                    .enhancePrompt(this.config.getVeoEnhancePrompt())
-                    .durationSeconds(this.config.getVeoDurationSeconds())
+                    .aspectRatio("16:9")
+                    .resolution("720p")
+                    .generateAudio(false)
                     .build();
 
             GenerateVideosOperation operation = client.models.generateVideos(
                     this.config.getVeoModel(),
-                    prompt,
-                    keyframeImage,
+                    source,
                     config
             );
 
