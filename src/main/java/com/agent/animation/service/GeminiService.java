@@ -22,8 +22,20 @@ public class GeminiService {
 
     public GeminiService() {
         this.config = AppConfig.getInstance();
-        this.client = new Client();
-        logger.info("GeminiService initialized");
+        String apiKey = config.getGeminiApiKey();
+        
+        if (apiKey == null || apiKey.isEmpty()) {
+            throw new IllegalStateException("GEMINI_API_KEY environment variable is not set");
+        }
+        
+        // 创建 Gemini Client
+        // 支持 Vertex AI Express Mode（使用 API Key 访问 Vertex AI）
+        this.client = Client.builder()
+                .apiKey(apiKey)
+                .vertexAI(true)  // 启用 Vertex AI Express Mode
+                .build();
+        
+        logger.info("GeminiService initialized with Vertex AI Express Mode");
     }
 
     /**

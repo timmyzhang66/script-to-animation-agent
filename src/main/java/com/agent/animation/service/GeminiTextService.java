@@ -28,7 +28,11 @@ public class GeminiTextService {
         }
         
         // 创建 Gemini Client
-        this.client = Client.builder().apiKey(apiKey).build();
+        // 支持 Vertex AI Express Mode（使用 API Key 访问 Vertex AI）
+        this.client = Client.builder()
+                .apiKey(apiKey)
+                .vertexAI(true)  // 启用 Vertex AI Express Mode
+                .build();
         
         logger.info("GeminiTextService initialized with model: {}", modelName);
     }

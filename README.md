@@ -115,6 +115,8 @@ export GEMINI_API_KEY="your-gemini-api-key"
 set GEMINI_API_KEY=your-gemini-api-key
 ```
 
+**注意**：本项目使用 **Vertex AI Express Mode**，支持使用 API Key 访问 Vertex AI 服务。这对于无法直接访问 Google AI Studio 的地区特别有用。
+
 ### 3. 构建项目
 
 ```bash
