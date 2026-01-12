@@ -146,15 +146,16 @@ public class GeminiService {
      */
     public String generateVideoFromImage(String prompt, String keyframeImagePath, String outputPath) throws Exception {
         return RetryUtils.executeWithRetry(() -> {
-            logger.info("Generating video from image using GCS. Prompt: {}, Keyframe: {}", prompt, keyframeImagePath);
+            logger.info("Generating video from image using imageBytes. Prompt: {}, Keyframe: {}", prompt, keyframeImagePath);
             
-            // 1. 将图片上传到 GCS 获取 gs:// URI
-            // 这是 Vertex AI 最推荐的原生集成方式，能有效避免 400 错误
-            String gcsUri = gcsService.uploadFile(keyframeImagePath, null);
+            // 读取本地图片文件为字节数组
+            byte[] imageBytes = FileUtils.readFileToByteArray(new File(keyframeImagePath));
+            logger.info("Read keyframe image: {} bytes", imageBytes.length);
             
-            // 2. 使用 Builder 创建 Image 对象，设置 gcsUri
+            // 使用 Builder 创建 Image 对象，直接设置图片字节数据
+            // 这样可以避免对 GCS 权限的依赖，解决 400 Invalid resource 错误
             Image keyframeImage = Image.builder()
-                    .gcsUri(gcsUri)
+                    .imageBytes(imageBytes)
                     .build();
             
             GenerateVideosConfig config = GenerateVideosConfig.builder()
