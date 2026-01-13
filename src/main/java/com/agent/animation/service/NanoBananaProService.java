@@ -74,8 +74,65 @@ public class NanoBananaProService {
     }
 
     /**
-     * 生成图像（文本到图像，带参考图像）
-     * 用于保持角色一致性
+     * 生成图像（文本到图像，带参考图像文件）
+     * 用于保持角色一致性 - 使用本地文件路径
+     * 
+     * @param prompt 文本提示
+     * @param referenceImagePaths 参考图像本地文件路径列表（最多 3 张）
+     * @param aspectRatio 宽高比
+     * @param resolution 分辨率
+     * @return 生成的图像 Base64 编码
+     * @throws Exception 生成失败时抛出异常
+     */
+    public String generateImageWithReferenceFiles(
+            String prompt, 
+            List<String> referenceImagePaths, 
+            String aspectRatio, 
+            String resolution) throws Exception {
+        
+        logger.info("Generating image with Nano Banana Pro (local file references)");
+        logger.info("  Prompt: {}", prompt);
+        logger.info("  Reference images: {}", referenceImagePaths != null ? referenceImagePaths.size() : 0);
+        logger.info("  Aspect ratio: {}", aspectRatio);
+        logger.info("  Resolution: {}", resolution);
+        
+        // 使用重试机制执行 API 请求
+        return RetryUtils.executeWithRetry(() -> {
+            // 构建请求体（使用本地文件）
+            JsonObject requestBody = buildRequestBodyWithFiles(prompt, referenceImagePaths, aspectRatio, resolution);
+            
+            // 获取访问令牌
+            credentials.refreshIfExpired();
+            String accessToken = credentials.getAccessToken().getTokenValue();
+            
+            // 发送 HTTP 请求
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(apiEndpoint))
+                    .header("Authorization", "Bearer " + accessToken)
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(gson.toJson(requestBody)))
+                    .build();
+            
+            logger.debug("Sending request to: {}", apiEndpoint);
+            
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            
+            if (response.statusCode() != 200) {
+                String errorMsg = String.format("API request failed with status %d: %s", 
+                        response.statusCode(), response.body());
+                logger.error(errorMsg);
+                throw new Exception(errorMsg);
+            }
+            
+            // 解析响应
+            JsonObject responseJson = gson.fromJson(response.body(), JsonObject.class);
+            return extractImageFromResponse(responseJson);
+        });
+    }
+
+    /**
+     * 生成图像（文本到图像，带参考图像 URL）
+     * 用于保持角色一致性 - 使用 URL（已弃用，Vertex AI 无法访问外部 URL）
      * 
      * @param prompt 文本提示
      * @param referenceImageUrls 参考图像 URL 列表（最多 3 张）
@@ -83,7 +140,9 @@ public class NanoBananaProService {
      * @param resolution 分辨率
      * @return 生成的图像 Base64 编码
      * @throws Exception 生成失败时抛出异常
+     * @deprecated 使用 generateImageWithReferenceFiles 代替
      */
+    @Deprecated
     public String generateImageWithReferences(
             String prompt, 
             List<String> referenceImageUrls, 
@@ -131,8 +190,85 @@ public class NanoBananaProService {
     }
 
     /**
-     * 构建请求体
+     * 构建请求体（使用本地文件）
      */
+    private JsonObject buildRequestBodyWithFiles(
+            String prompt, 
+            List<String> referenceImagePaths, 
+            String aspectRatio, 
+            String resolution) throws IOException {
+        
+        JsonObject requestBody = new JsonObject();
+        
+        // 构建 contents 数组
+        JsonArray contents = new JsonArray();
+        JsonObject content = new JsonObject();
+        JsonArray parts = new JsonArray();
+        
+        // 添加 role 字段
+        content.addProperty("role", "user");
+        
+        // 添加文本提示
+        JsonObject textPart = new JsonObject();
+        textPart.addProperty("text", prompt);
+        parts.add(textPart);
+        
+        // 添加参考图像（如果有）- 使用 inlineData 而非 fileUri
+        if (referenceImagePaths != null && !referenceImagePaths.isEmpty()) {
+            int maxImages = config.getNanoBananaProMaxReferenceImages();
+            int imageCount = Math.min(referenceImagePaths.size(), maxImages);
+            
+            for (int i = 0; i < imageCount; i++) {
+                String imagePath = referenceImagePaths.get(i);
+                logger.debug("Reading reference image from: {}", imagePath);
+                
+                // 读取本地文件并转换为 Base64
+                byte[] imageBytes = Files.readAllBytes(Paths.get(imagePath));
+                String base64Image = Base64.getEncoder().encodeToString(imageBytes);
+                
+                // 构建 inlineData 部分
+                JsonObject imagePart = new JsonObject();
+                JsonObject inlineData = new JsonObject();
+                inlineData.addProperty("mimeType", "image/jpeg");
+                inlineData.addProperty("data", base64Image);
+                imagePart.add("inlineData", inlineData);
+                parts.add(imagePart);
+                
+                logger.debug("Added reference image {} ({} bytes)", i + 1, imageBytes.length);
+            }
+            
+            if (referenceImagePaths.size() > maxImages) {
+                logger.warn("Reference images exceed max limit ({}). Using first {} images.", 
+                        maxImages, maxImages);
+            }
+        }
+        
+        content.add("parts", parts);
+        contents.add(content);
+        requestBody.add("contents", contents);
+        
+        // 添加生成配置
+        JsonObject generationConfig = new JsonObject();
+        generationConfig.addProperty("temperature", 0.4);
+        generationConfig.addProperty("topP", 1.0);
+        generationConfig.addProperty("topK", 32);
+        generationConfig.addProperty("maxOutputTokens", 8192);
+        
+        // 添加响应模态
+        JsonArray responseModalities = new JsonArray();
+        responseModalities.add("IMAGE");
+        generationConfig.add("responseModalities", responseModalities);
+        
+        requestBody.add("generationConfig", generationConfig);
+        
+        return requestBody;
+    }
+
+    /**
+     * 构建请求体（使用 URL）
+     * @deprecated Vertex AI 无法访问外部 URL，使用 buildRequestBodyWithFiles 代替
+     */
+    @Deprecated
     private JsonObject buildRequestBody(
             String prompt, 
             List<String> referenceImageUrls, 
@@ -252,5 +388,13 @@ public class NanoBananaProService {
         byte[] imageBytes = Base64.getDecoder().decode(base64Image);
         Files.write(path, imageBytes);
         logger.info("Image saved to: {} ({} bytes)", outputPath, imageBytes.length);
+    }
+    
+    /**
+     * 从本地文件读取图像并转换为 Base64
+     */
+    private String readImageAsBase64(String imagePath) throws IOException {
+        byte[] imageBytes = Files.readAllBytes(Paths.get(imagePath));
+        return Base64.getEncoder().encodeToString(imageBytes);
     }
 }

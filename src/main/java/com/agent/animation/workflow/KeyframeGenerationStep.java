@@ -54,13 +54,14 @@ public class KeyframeGenerationStep implements WorkflowStep {
                         sceneCharacters.size(), 
                         characterNames);
                 
-                // 2. 收集角色参考图像 URL
-                List<String> referenceUrls = new ArrayList<>();
+                // 2. 收集角色参考图像的本地路径（不使用 URL）
+                List<String> referencePaths = new ArrayList<>();
                 StringBuilder characterDescriptions = new StringBuilder();
                 
                 for (Character character : sceneCharacters) {
-                    if (character.getImageUrl() != null && !character.getImageUrl().isEmpty()) {
-                        referenceUrls.add(character.getImageUrl());
+                    // 使用本地路径而非 URL，避免 Vertex AI 访问外部 URL 的问题
+                    if (character.getImagePath() != null && !character.getImagePath().isEmpty()) {
+                        referencePaths.add(character.getImagePath());
                         characterDescriptions.append(character.getName())
                                 .append(": ")
                                 .append(character.getDescription())
@@ -75,19 +76,19 @@ public class KeyframeGenerationStep implements WorkflowStep {
                         characterNames
                 );
                 
-                logger.info("Using {} reference images for scene {}", 
-                        referenceUrls.size(), scene.getSceneNumber());
+                logger.info("Using {} reference images (local paths) for scene {}", 
+                        referencePaths.size(), scene.getSceneNumber());
                 
                 // 4. 使用 Nano Banana Pro 生成图像
                 String aspectRatio = config.getNanoBananaProAspectRatio();
                 String resolution = config.getNanoBananaProResolution();
                 
                 String base64Image;
-                if (!referenceUrls.isEmpty()) {
-                    // 使用参考图像生成
-                    base64Image = nanoBananaProService.generateImageWithReferences(
+                if (!referencePaths.isEmpty()) {
+                    // 使用参考图像生成（传递本地路径）
+                    base64Image = nanoBananaProService.generateImageWithReferenceFiles(
                             visualPrompt,
-                            referenceUrls,
+                            referencePaths,
                             aspectRatio,
                             resolution
                     );
