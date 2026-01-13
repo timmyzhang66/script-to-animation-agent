@@ -84,30 +84,46 @@ public class VideoGenerationStep implements WorkflowStep {
 
     /**
      * 构建视频生成的提示词
+     * 按照 Veo 3.1 的最佳实践格式化对话
      */
     private String buildVideoPrompt(Scene scene, WorkflowContext context) {
         StringBuilder prompt = new StringBuilder();
         
-        // 添加场景描述
-        prompt.append(scene.getDescription());
+        // 1. 添加视觉描述（如果有）
+        if (scene.getVisualDescription() != null && !scene.getVisualDescription().isEmpty()) {
+            prompt.append(scene.getVisualDescription());
+        } else {
+            // 如果没有视觉描述，使用场景描述
+            prompt.append(scene.getDescription());
+        }
         
-        // 添加对话
+        // 2. 添加对话（按照 Veo 3.1 格式）
         if (scene.getDialogue() != null && !scene.getDialogue().isEmpty()) {
-            prompt.append(". ").append(scene.getDialogue());
+            String dialogue = scene.getDialogue().trim();
+            
+            // 检查对话是否已经包含引号和 "says" 格式
+            if (!dialogue.contains("\"") && !dialogue.toLowerCase().contains("says")) {
+                // 如果没有，添加基本的对话格式
+                // 尝试从角色名称中获取第一个角色
+                String characterName = "The character";
+                if (!scene.getCharacterNames().isEmpty()) {
+                    characterName = scene.getCharacterNames().get(0);
+                }
+                prompt.append(". ").append(characterName).append(" says, \"").append(dialogue).append("\"");
+            } else {
+                // 已经是正确的格式，直接添加
+                prompt.append(". ").append(dialogue);
+            }
         }
         
-        // 添加角色信息
-        if (!scene.getCharacterNames().isEmpty()) {
-            prompt.append("\n\nCharacters: ");
-            prompt.append(String.join(", ", scene.getCharacterNames()));
-        }
+        // 3. 添加音效提示（可选）
+        // 例如：SFX: footsteps, ambient noise: wind
+        // 这里可以根据场景类型添加适当的环境音
         
-        // 添加动画要求
-        prompt.append("\n\nAnimation requirements:");
-        prompt.append("\n- Smooth and natural motion");
-        prompt.append("\n- Maintain character consistency");
-        prompt.append("\n- Cinematic quality");
-        prompt.append("\n- Clear storytelling");
+        // 4. 添加动画要求
+        prompt.append("\n\nAnimation style: Smooth and natural motion, maintain character consistency, cinematic quality.");
+        
+        logger.debug("Video prompt for scene {}: {}", scene.getSceneNumber(), prompt.toString());
         
         return prompt.toString();
     }

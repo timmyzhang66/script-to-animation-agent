@@ -206,7 +206,7 @@ public class GeminiTextService {
                 "1. sceneNumber: sequential number starting from 1\n" +
                 "2. description: what happens in the scene\n" +
                 "3. visualDescription: detailed visual description for image generation (camera angle, lighting, composition, colors, mood)\n" +
-                "4. dialogue: any spoken words in the scene\n\n" +
+                "4. dialogue: any spoken words in the scene, formatted as 'Character says, \"dialogue text\"' (use quotation marks)\n\n" +
                 "Output format (JSON only, no markdown):\n" +
                 "{\n" +
                 "  \"scenes\": [\n" +
@@ -214,10 +214,11 @@ public class GeminiTextService {
                 "      \"sceneNumber\": 1,\n" +
                 "      \"description\": \"...\",\n" +
                 "      \"visualDescription\": \"...\",\n" +
-                "      \"dialogue\": \"...\"\n" +
+                "      \"dialogue\": \"Character says, \\\"dialogue text\\\"\"\n" +
                 "    }\n" +
                 "  ]\n" +
                 "}\n\n" +
+                "Important: Format dialogue as 'Character says, \"dialogue text\"' with quotation marks around the spoken words.\n\n" +
                 "Script:\n" + scriptContent + "\n\n" +
                 "Storyboard JSON:";
         
