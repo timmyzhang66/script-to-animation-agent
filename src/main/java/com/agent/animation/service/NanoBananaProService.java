@@ -48,12 +48,16 @@ public class NanoBananaProService {
         // 构建 API 端点
         String projectId = config.getGcpProjectId();
         String location = config.getGcpLocation();
+        String model = config.getNanoBananaProModel();
+        
+        // 对于 Gemini 2.5 Flash Image，使用正确的端点格式
+        // https://LOCATION-aiplatform.googleapis.com/v1/projects/PROJECT_ID/locations/LOCATION/publishers/google/models/MODEL_ID:generateContent
         this.apiEndpoint = String.format(
             "https://%s-aiplatform.googleapis.com/v1/projects/%s/locations/%s/publishers/google/models/%s:generateContent",
             location,
             projectId,
             location,
-            config.getNanoBananaProModel()
+            model
         );
         
         logger.info("NanoBananaProService initialized");
