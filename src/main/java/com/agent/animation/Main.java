@@ -18,6 +18,9 @@ public class Main {
     private static final Logger logger = LoggerFactory.getLogger(Main.class);
 
     public static void main(String[] args) {
+        // 在程序启动时配置 Jackson 限制（必须在任何 Jackson 使用之前）
+        configureJacksonLimits();
+        
         logger.info("Script to Animation Agent - Starting");
         
         try {
@@ -62,6 +65,21 @@ public class Main {
         }
     }
 
+    /**
+     * 配置 Jackson 字符串长度限制
+     * 必须在程序启动时调用，在任何 Jackson 使用之前
+     */
+    private static void configureJacksonLimits() {
+        try {
+            // 设置系统属性来配置 Jackson 的最大字符串长度
+            // 100MB = 100 * 1024 * 1024 = 104857600 字节
+            System.setProperty("com.fasterxml.jackson.core.StreamReadConstraints.maxStringLength", "104857600");
+            logger.info("Jackson string length limit configured to 100MB");
+        } catch (Exception e) {
+            logger.warn("Failed to configure Jackson limits: {}", e.getMessage());
+        }
+    }
+    
     /**
      * 检查必要的环境变量
      */

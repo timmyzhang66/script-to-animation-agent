@@ -25,6 +25,9 @@ public class GeminiService {
     public GeminiService() {
         this.config = AppConfig.getInstance();
         
+        // 配置 Jackson 字符串长度限制（用于处理大型 Base64 图片）
+        configureJacksonLimits();
+        
         // 检查是否配置了服务账号密钥文件
         String serviceAccountKeyPath = config.getGcpServiceAccountKeyPath();
         if (serviceAccountKeyPath != null && !serviceAccountKeyPath.isEmpty()) {
@@ -58,6 +61,21 @@ public class GeminiService {
         
         // 初始化 OSS 服务
         this.ossService = new OSSService();
+    }
+    
+    /**
+     * 配置 Jackson 字符串长度限制
+     * 用于处理大型 Base64 编码的图片（最大 100MB）
+     */
+    private void configureJacksonLimits() {
+        try {
+            // 设置系统属性来配置 Jackson 的最大字符串长度
+            // 100MB = 100 * 1024 * 1024 = 104857600 字节
+            System.setProperty("com.fasterxml.jackson.core.StreamReadConstraints.maxStringLength", "104857600");
+            logger.info("Jackson string length limit configured to 100MB");
+        } catch (Exception e) {
+            logger.warn("Failed to configure Jackson limits: {}", e.getMessage());
+        }
     }
 
     /**

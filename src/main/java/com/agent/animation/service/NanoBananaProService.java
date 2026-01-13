@@ -39,6 +39,9 @@ public class NanoBananaProService {
         this.httpClient = HttpClient.newHttpClient();
         this.gson = new Gson();
         
+        // 配置 Jackson 字符串长度限制（用于处理大型 Base64 图片响应）
+        configureJacksonLimits();
+        
         // 加载服务账号凭证
         String keyPath = config.getGcpServiceAccountKeyPath();
         this.credentials = GoogleCredentials.fromStream(new FileInputStream(keyPath))
@@ -388,6 +391,21 @@ public class NanoBananaProService {
         byte[] imageBytes = Base64.getDecoder().decode(base64Image);
         Files.write(path, imageBytes);
         logger.info("Image saved to: {} ({} bytes)", outputPath, imageBytes.length);
+    }
+    
+    /**
+     * 配置 Jackson 字符串长度限制
+     * 用于处理大型 Base64 编码的图片响应（最大 100MB）
+     */
+    private void configureJacksonLimits() {
+        try {
+            // 设置系统属性来配置 Jackson 的最大字符串长度
+            // 100MB = 100 * 1024 * 1024 = 104857600 字节
+            System.setProperty("com.fasterxml.jackson.core.StreamReadConstraints.maxStringLength", "104857600");
+            logger.info("Jackson string length limit configured to 100MB for NanoBananaProService");
+        } catch (Exception e) {
+            logger.warn("Failed to configure Jackson limits: {}", e.getMessage());
+        }
     }
     
     /**
