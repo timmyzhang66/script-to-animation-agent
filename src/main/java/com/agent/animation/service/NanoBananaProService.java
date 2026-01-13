@@ -15,6 +15,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Base64;
 import java.util.List;
@@ -239,8 +240,17 @@ public class NanoBananaProService {
      * 保存 Base64 图像到文件
      */
     public void saveImageToFile(String base64Image, String outputPath) throws IOException {
+        // 确保父目录存在
+        Path path = Paths.get(outputPath);
+        Path parentDir = path.getParent();
+        if (parentDir != null && !Files.exists(parentDir)) {
+            Files.createDirectories(parentDir);
+            logger.debug("Created directory: {}", parentDir);
+        }
+        
+        // 解码并保存
         byte[] imageBytes = Base64.getDecoder().decode(base64Image);
-        Files.write(Paths.get(outputPath), imageBytes);
-        logger.info("Image saved to: {}", outputPath);
+        Files.write(path, imageBytes);
+        logger.info("Image saved to: {} ({} bytes)", outputPath, imageBytes.length);
     }
 }
