@@ -1,6 +1,7 @@
 package com.agent.animation.service;
 
 import com.agent.animation.config.AppConfig;
+import com.agent.animation.util.RetryUtils;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
@@ -21,28 +22,25 @@ import java.util.Base64;
 import java.util.List;
 
 /**
- * Nano Banana Pro 服务类
- * 使用 REST API 直接调用 Gemini 3 Pro Image 模型
+ * Nano Banana Pro (Gemini 2.5 Flash Image) 服务
+ * 使用 REST API 直接调用 Gemini 2.5 Flash Image 模型
  */
 public class NanoBananaProService {
     private static final Logger logger = LoggerFactory.getLogger(NanoBananaProService.class);
+    
     private final AppConfig config;
     private final HttpClient httpClient;
     private final Gson gson;
     private final GoogleCredentials credentials;
     private final String apiEndpoint;
-
+    
     public NanoBananaProService() throws IOException {
         this.config = AppConfig.getInstance();
         this.httpClient = HttpClient.newHttpClient();
         this.gson = new Gson();
         
-        // 加载 Google 凭证
+        // 加载服务账号凭证
         String keyPath = config.getGcpServiceAccountKeyPath();
-        if (keyPath == null || keyPath.isEmpty()) {
-            throw new IllegalStateException("GCP_SERVICE_ACCOUNT_KEY_PATH is not set");
-        }
-        
         this.credentials = GoogleCredentials.fromStream(new FileInputStream(keyPath))
                 .createScoped("https://www.googleapis.com/auth/cloud-platform");
         
@@ -51,22 +49,19 @@ public class NanoBananaProService {
         String location = config.getGcpLocation();
         String model = config.getNanoBananaProModel();
         
-        // 对于 Gemini 2.5 Flash Image，使用正确的端点格式
-        // https://LOCATION-aiplatform.googleapis.com/v1/projects/PROJECT_ID/locations/LOCATION/publishers/google/models/MODEL_ID:generateContent
         this.apiEndpoint = String.format(
-            "https://%s-aiplatform.googleapis.com/v1/projects/%s/locations/%s/publishers/google/models/%s:generateContent",
-            location,
-            projectId,
-            location,
-            model
+                "https://%s-aiplatform.googleapis.com/v1/projects/%s/locations/%s/publishers/google/models/%s:generateContent",
+                location, projectId, location, model
         );
         
         logger.info("NanoBananaProService initialized");
-        logger.info("  Endpoint: {}", apiEndpoint);
+        logger.info("  Model: {}", model);
+        logger.info("  Location: {}", location);
+        logger.info("  Max reference images: {}", config.getNanoBananaProMaxReferenceImages());
     }
-
+    
     /**
-     * 生成图像（文本到图像）
+     * 生成图像（文本到图像，无参考图像）
      * 
      * @param prompt 文本提示
      * @param aspectRatio 宽高比（例如 "16:9", "1:1"）
@@ -83,7 +78,7 @@ public class NanoBananaProService {
      * 用于保持角色一致性
      * 
      * @param prompt 文本提示
-     * @param referenceImageUrls 参考图像 URL 列表（最多 14 张）
+     * @param referenceImageUrls 参考图像 URL 列表（最多 3 张）
      * @param aspectRatio 宽高比
      * @param resolution 分辨率
      * @return 生成的图像 Base64 编码
@@ -101,35 +96,38 @@ public class NanoBananaProService {
         logger.info("  Aspect ratio: {}", aspectRatio);
         logger.info("  Resolution: {}", resolution);
         
-        // 构建请求体
-        JsonObject requestBody = buildRequestBody(prompt, referenceImageUrls, aspectRatio, resolution);
-        
-        // 获取访问令牌
-        credentials.refreshIfExpired();
-        String accessToken = credentials.getAccessToken().getTokenValue();
-        
-        // 发送 HTTP 请求
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(apiEndpoint))
-                .header("Authorization", "Bearer " + accessToken)
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(gson.toJson(requestBody)))
-                .build();
-        
-        logger.debug("Sending request to: {}", apiEndpoint);
-        
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-        
-        if (response.statusCode() != 200) {
-            String errorMsg = String.format("API request failed with status %d: %s", 
-                    response.statusCode(), response.body());
-            logger.error(errorMsg);
-            throw new Exception(errorMsg);
-        }
-        
-        // 解析响应
-        JsonObject responseJson = gson.fromJson(response.body(), JsonObject.class);
-        return extractImageFromResponse(responseJson);
+        // 使用重试机制执行 API 请求
+        return RetryUtils.executeWithRetry(() -> {
+            // 构建请求体
+            JsonObject requestBody = buildRequestBody(prompt, referenceImageUrls, aspectRatio, resolution);
+            
+            // 获取访问令牌
+            credentials.refreshIfExpired();
+            String accessToken = credentials.getAccessToken().getTokenValue();
+            
+            // 发送 HTTP 请求
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(apiEndpoint))
+                    .header("Authorization", "Bearer " + accessToken)
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(gson.toJson(requestBody)))
+                    .build();
+            
+            logger.debug("Sending request to: {}", apiEndpoint);
+            
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            
+            if (response.statusCode() != 200) {
+                String errorMsg = String.format("API request failed with status %d: %s", 
+                        response.statusCode(), response.body());
+                logger.error(errorMsg);
+                throw new Exception(errorMsg);
+            }
+            
+            // 解析响应
+            JsonObject responseJson = gson.fromJson(response.body(), JsonObject.class);
+            return extractImageFromResponse(responseJson);
+        });
     }
 
     /**
@@ -148,6 +146,9 @@ public class NanoBananaProService {
         JsonObject content = new JsonObject();
         JsonArray parts = new JsonArray();
         
+        // 添加 role 字段
+        content.addProperty("role", "user");
+        
         // 添加文本提示
         JsonObject textPart = new JsonObject();
         textPart.addProperty("text", prompt);
@@ -155,46 +156,47 @@ public class NanoBananaProService {
         
         // 添加参考图像（如果有）
         if (referenceImageUrls != null && !referenceImageUrls.isEmpty()) {
-            for (String imageUrl : referenceImageUrls) {
+            int maxImages = config.getNanoBananaProMaxReferenceImages();
+            int imageCount = Math.min(referenceImageUrls.size(), maxImages);
+            
+            for (int i = 0; i < imageCount; i++) {
                 JsonObject imagePart = new JsonObject();
                 JsonObject fileData = new JsonObject();
-                fileData.addProperty("fileUri", imageUrl);
+                fileData.addProperty("fileUri", referenceImageUrls.get(i));
                 fileData.addProperty("mimeType", "image/jpeg");
                 imagePart.add("fileData", fileData);
                 parts.add(imagePart);
             }
+            
+            if (referenceImageUrls.size() > maxImages) {
+                logger.warn("Reference images exceed max limit ({}). Using first {} images.", 
+                        maxImages, maxImages);
+            }
         }
         
-        content.addProperty("role", "user");  // 添加 role 字段
         content.add("parts", parts);
         contents.add(content);
         requestBody.add("contents", contents);
         
-        // 构建 generationConfig
+        // 添加生成配置
         JsonObject generationConfig = new JsonObject();
+        generationConfig.addProperty("temperature", 0.4);
+        generationConfig.addProperty("topP", 1.0);
+        generationConfig.addProperty("topK", 32);
+        generationConfig.addProperty("maxOutputTokens", 8192);
         
-        // 设置响应模态为 IMAGE
+        // 添加响应模态
         JsonArray responseModalities = new JsonArray();
         responseModalities.add("IMAGE");
         generationConfig.add("responseModalities", responseModalities);
         
-        // 设置图像配置
-        JsonObject imageConfig = new JsonObject();
-        imageConfig.addProperty("aspectRatio", aspectRatio);
-        imageConfig.addProperty("imageSize", resolution);
-        generationConfig.add("imageConfig", imageConfig);
+        // 添加图像生成配置
+        JsonObject imageGenerationConfig = new JsonObject();
+        imageGenerationConfig.addProperty("aspectRatio", aspectRatio);
+        imageGenerationConfig.addProperty("resolution", resolution);
+        generationConfig.add("imageGenerationConfig", imageGenerationConfig);
         
         requestBody.add("generationConfig", generationConfig);
-        
-        // 添加 Google Search 工具（可选）
-        if (config.getNanoBananaProUseGoogleSearch()) {
-            JsonArray tools = new JsonArray();
-            JsonObject tool = new JsonObject();
-            JsonObject googleSearch = new JsonObject();
-            tool.add("googleSearch", googleSearch);
-            tools.add(tool);
-            requestBody.add("tools", tools);
-        }
         
         return requestBody;
     }
@@ -202,10 +204,10 @@ public class NanoBananaProService {
     /**
      * 从响应中提取图像
      */
-    private String extractImageFromResponse(JsonObject response) throws Exception {
+    private String extractImageFromResponse(JsonObject responseJson) throws Exception {
         try {
-            JsonArray candidates = response.getAsJsonArray("candidates");
-            if (candidates == null || candidates.isEmpty()) {
+            JsonArray candidates = responseJson.getAsJsonArray("candidates");
+            if (candidates == null || candidates.size() == 0) {
                 throw new Exception("No candidates in response");
             }
             
@@ -213,22 +215,23 @@ public class NanoBananaProService {
             JsonObject content = candidate.getAsJsonObject("content");
             JsonArray parts = content.getAsJsonArray("parts");
             
-            if (parts == null || parts.isEmpty()) {
-                throw new Exception("No parts in response");
-            }
-            
-            // 查找包含图像的 part
+            // 查找图像部分
             for (int i = 0; i < parts.size(); i++) {
                 JsonObject part = parts.get(i).getAsJsonObject();
                 if (part.has("inlineData")) {
                     JsonObject inlineData = part.getAsJsonObject("inlineData");
-                    String imageData = inlineData.get("data").getAsString();
-                    logger.info("Image extracted successfully");
-                    return imageData;
+                    String base64Image = inlineData.get("data").getAsString();
+                    String mimeType = inlineData.get("mimeType").getAsString();
+                    
+                    logger.info("Image generated successfully");
+                    logger.info("  MIME type: {}", mimeType);
+                    logger.info("  Size: {} bytes", base64Image.length());
+                    
+                    return base64Image;
                 }
             }
             
-            throw new Exception("No image data found in response");
+            throw new Exception("No image found in response");
             
         } catch (Exception e) {
             logger.error("Failed to extract image from response: {}", e.getMessage());

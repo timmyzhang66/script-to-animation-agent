@@ -208,6 +208,10 @@ public class AppConfig {
         return getProperty("nano.banana.pro.resolution", "2K");
     }
     
+    public int getNanoBananaProMaxReferenceImages() {
+        return getIntProperty("nano.banana.pro.max.reference.images", 3);
+    }
+    
     // Gemini 3 Flash 配置
     public String getGemini3FlashModel() {
         return getProperty("gemini.3.flash.model", "gemini-3.0-flash");
