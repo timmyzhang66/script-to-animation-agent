@@ -181,9 +181,29 @@ public class GeminiService {
                         .build();
                 logger.info("Created Image object with GCS URI: {}", imageUrl);
             } else {
-                // HTTP URL - 需要转换为 imageBytes
-                logger.info("HTTP URL detected, downloading image...");
-                byte[] imageBytes = java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(keyframeImageUrl));
+                // HTTP URL - 需要下载并转换为 imageBytes
+                logger.info("HTTP URL detected, downloading image from: {}", imageUrl);
+                
+                // 使用 HTTP 客户端下载图片
+                java.net.http.HttpClient httpClient = java.net.http.HttpClient.newHttpClient();
+                java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
+                        .uri(java.net.URI.create(imageUrl))
+                        .GET()
+                        .build();
+                
+                java.net.http.HttpResponse<byte[]> response = httpClient.send(
+                        request, 
+                        java.net.http.HttpResponse.BodyHandlers.ofByteArray()
+                );
+                
+                if (response.statusCode() != 200) {
+                    throw new Exception("Failed to download image from URL: " + imageUrl + 
+                            ", status code: " + response.statusCode());
+                }
+                
+                byte[] imageBytes = response.body();
+                logger.info("Downloaded image: {} bytes", imageBytes.length);
+                
                 keyframeImage = Image.builder()
                         .imageBytes(imageBytes)
                         .mimeType("image/jpeg")
