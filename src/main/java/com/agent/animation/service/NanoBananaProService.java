@@ -190,11 +190,8 @@ public class NanoBananaProService {
         responseModalities.add("IMAGE");
         generationConfig.add("responseModalities", responseModalities);
         
-        // 添加图像生成配置
-        JsonObject imageGenerationConfig = new JsonObject();
-        imageGenerationConfig.addProperty("aspectRatio", aspectRatio);
-        imageGenerationConfig.addProperty("resolution", resolution);
-        generationConfig.add("imageGenerationConfig", imageGenerationConfig);
+        // 注意：Gemini 2.5 Flash Image 不支持 imageGenerationConfig
+        // aspectRatio 和 resolution 参数已经被忽略
         
         requestBody.add("generationConfig", generationConfig);
         
