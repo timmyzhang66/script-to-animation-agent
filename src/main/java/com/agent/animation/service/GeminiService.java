@@ -347,19 +347,37 @@ public class GeminiService {
         }
 
         // 提取生成的视频
-        if (operation.response().isPresent()) {
-            GenerateVideosResponse response = operation.response().get();
-            if (response.generatedVideos().isPresent() && !response.generatedVideos().get().isEmpty()) {
-                Video video = response.generatedVideos().get().get(0).video().orElse(null);
-                if (video != null) {
-                    saveVideo(video, outputPath);
-                    logger.info("Video generated successfully: {}", outputPath);
-                    return outputPath;
-                }
-            }
+        logger.info("Video operation completed, extracting video...");
+        
+        if (!operation.response().isPresent()) {
+            logger.error("Operation response is not present");
+            throw new Exception("Failed to extract video: operation response is not present");
         }
-
-        throw new Exception("Failed to extract video from operation response");
+        
+        GenerateVideosResponse response = operation.response().get();
+        logger.debug("Response object: {}", response);
+        
+        if (!response.generatedVideos().isPresent()) {
+            logger.error("Generated videos list is not present in response");
+            throw new Exception("Failed to extract video: generatedVideos is not present");
+        }
+        
+        if (response.generatedVideos().get().isEmpty()) {
+            logger.error("Generated videos list is empty");
+            throw new Exception("Failed to extract video: generatedVideos list is empty");
+        }
+        
+        logger.info("Found {} generated video(s)", response.generatedVideos().get().size());
+        
+        Video video = response.generatedVideos().get().get(0).video().orElse(null);
+        if (video == null) {
+            logger.error("Video object is null in the first generated video");
+            throw new Exception("Failed to extract video: video object is null");
+        }
+        
+        saveVideo(video, outputPath);
+        logger.info("Video generated successfully: {}", outputPath);
+        return outputPath;
     }
 
     /**
