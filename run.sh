@@ -33,14 +33,19 @@ if [ ! -f "$JAR_FILE" ]; then
     fi
 fi
 
+# Set JVM parameters
+# Increase Jackson string length limit to 100MB to handle large Base64 image responses
+JAVA_OPTS="-Dcom.fasterxml.jackson.core.StreamReadConstraints.maxStringLength=104857600"
+
 # Run the application
 echo "Starting Animation Agent..."
+echo "JVM Options: $JAVA_OPTS"
 echo ""
 
 if [ $# -eq 0 ]; then
     # No arguments - interactive mode
-    java -jar "$JAR_FILE"
+    java $JAVA_OPTS -jar "$JAR_FILE"
 else
     # Pass all arguments to the application
-    java -jar "$JAR_FILE" "$@"
+    java $JAVA_OPTS -jar "$JAR_FILE" "$@"
 fi

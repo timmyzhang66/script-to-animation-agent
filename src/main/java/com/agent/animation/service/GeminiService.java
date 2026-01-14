@@ -239,7 +239,7 @@ public class GeminiService {
             GenerateVideosConfig videoConfig = GenerateVideosConfig.builder()
                     .aspectRatio(this.config.getVeoAspectRatio())
                     .resolution(this.config.getVeoResolution())
-                    .generateAudio(false)
+                    .generateAudio(true)  // 启用音频生成
                     .build();
             
             logger.info("Starting video generation with Veo model: {}", this.config.getVeoModel());
@@ -302,7 +302,7 @@ public class GeminiService {
             GenerateVideosConfig config = GenerateVideosConfig.builder()
                     .aspectRatio("16:9")
                     .resolution("720p")
-                    .generateAudio(false)
+                    .generateAudio(true)  // 启用音频生成
                     .build();
 
             GenerateVideosOperation operation = client.models.generateVideos(
