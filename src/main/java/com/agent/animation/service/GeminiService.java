@@ -255,7 +255,7 @@ public class GeminiService {
             logger.info("Video generation operation started: {}", operation.name());
             
             return waitForVideoOperation(operation, outputPath);
-        });
+        }, 3, 300L, 1000L);
     }
     
     /**

@@ -33,11 +33,14 @@ public class RetryUtils {
                 return action.call();
             } catch (Exception e) {
                 String errorMessage = e.getMessage();
-                boolean isRateLimit = errorMessage != null && (errorMessage.contains("429") || errorMessage.contains("Quota exceeded"));
 
-                if (isRateLimit && attempt < maxAttempts) {
-                    logger.warn("API Rate limit exceeded (429). Attempt {}/{} failed. Retrying in {} ms...", 
-                            attempt, maxAttempts, delay);
+
+                if (attempt < maxAttempts) {
+                    //boolean isRateLimit = errorMessage != null && (errorMessage.contains("429") || errorMessage.contains("Quota exceeded"));
+
+                    logger.warn("Attempt {}/{} failed. Retrying in {} ms..., error is :{}",
+                                attempt, maxAttempts, delay, errorMessage);
+
                     
                     try {
                         Thread.sleep(delay);
