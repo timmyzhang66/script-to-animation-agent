@@ -33,19 +33,20 @@ if [ ! -f "$JAR_FILE" ]; then
     fi
 fi
 
-# Set JVM parameters
+# Set JVM parameters using JAVA_TOOL_OPTIONS environment variable
+# This is more reliable than -D flags as it's picked up automatically by the JVM
 # Increase Jackson string length limit to 100MB to handle large Base64 image responses
-JAVA_OPTS="-Dcom.fasterxml.jackson.core.StreamReadConstraints.maxStringLength=104857600"
+export JAVA_TOOL_OPTIONS="-Dcom.fasterxml.jackson.core.StreamReadConstraints.maxStringLength=104857600"
 
 # Run the application
 echo "Starting Animation Agent..."
-echo "JVM Options: $JAVA_OPTS"
+echo "JVM Options: $JAVA_TOOL_OPTIONS"
 echo ""
 
 if [ $# -eq 0 ]; then
     # No arguments - interactive mode
-    java $JAVA_OPTS -jar "$JAR_FILE"
+    java -jar "$JAR_FILE"
 else
     # Pass all arguments to the application
-    java $JAVA_OPTS -jar "$JAR_FILE" "$@"
+    java -jar "$JAR_FILE" "$@"
 fi
