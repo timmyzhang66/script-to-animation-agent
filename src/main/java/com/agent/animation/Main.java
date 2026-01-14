@@ -71,12 +71,29 @@ public class Main {
      */
     private static void configureJacksonLimits() {
         try {
-            // 设置系统属性来配置 Jackson 的最大字符串长度
+            // 使用 Jackson 2.15.2+ 的静态方法覆盖默认限制
             // 100MB = 100 * 1024 * 1024 = 104857600 字节
-            System.setProperty("com.fasterxml.jackson.core.StreamReadConstraints.maxStringLength", "104857600");
-            logger.info("Jackson string length limit configured to 100MB");
+            Class<?> constraintsClass = Class.forName("com.fasterxml.jackson.core.StreamReadConstraints");
+            Class<?> builderClass = Class.forName("com.fasterxml.jackson.core.StreamReadConstraints$Builder");
+            
+            // 调用 StreamReadConstraints.builder()
+            Object builder = constraintsClass.getMethod("builder").invoke(null);
+            
+            // 调用 builder.maxStringLength(104857600)
+            builder = builderClass.getMethod("maxStringLength", int.class).invoke(builder, 104857600);
+            
+            // 调用 builder.build()
+            Object constraints = builderClass.getMethod("build").invoke(builder);
+            
+            // 调用 StreamReadConstraints.overrideDefaultStreamReadConstraints(constraints)
+            constraintsClass.getMethod("overrideDefaultStreamReadConstraints", constraintsClass)
+                    .invoke(null, constraints);
+            
+            logger.info("Jackson string length limit configured to 100MB using static method");
         } catch (Exception e) {
-            logger.warn("Failed to configure Jackson limits: {}", e.getMessage());
+            logger.warn("Failed to configure Jackson limits using static method: {}", e.getMessage());
+            logger.warn("Falling back to system property (may not work with all Jackson versions)");
+            System.setProperty("com.fasterxml.jackson.core.StreamReadConstraints.maxStringLength", "104857600");
         }
     }
     
