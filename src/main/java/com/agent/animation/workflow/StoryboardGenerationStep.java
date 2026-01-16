@@ -2,6 +2,7 @@ package com.agent.animation.workflow;
 
 import com.agent.animation.dto.Scene;
 import com.agent.animation.dto.Storyboard;
+import com.agent.animation.parser.ScriptParser;
 import com.agent.animation.service.GeminiTextService;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
@@ -19,10 +20,12 @@ import java.util.stream.Collectors;
  */
 public class StoryboardGenerationStep implements WorkflowStep {
     private static final Logger logger = LoggerFactory.getLogger(StoryboardGenerationStep.class);
+    private final ScriptParser scriptParser;
     private final GeminiTextService geminiTextService;
     private final Gson gson;
 
     public StoryboardGenerationStep() {
+        this.scriptParser = new ScriptParser();
         this.geminiTextService = new GeminiTextService();
         this.gson = new Gson();
     }
@@ -33,48 +36,27 @@ public class StoryboardGenerationStep implements WorkflowStep {
         
         String scriptContent = context.getScriptInput().getScriptContent();
         
-        // 1. 使用 Gemini 生成分镜
-        logger.info("Generating storyboard from script...");
-        String storyboardJson = geminiTextService.generateStoryboard(scriptContent);
+        // 1. 使用 ScriptParser 解析脚本
+        logger.info("Parsing script to extract scenes and dialogues...");
+        List<Scene> scenes = scriptParser.parse(scriptContent);
         
-        logger.debug("Storyboard JSON: {}", storyboardJson);
+        logger.info("Parsed {} scenes from the script", scenes.size());
         
-        // 2. 解析 JSON 响应
-        JsonObject jsonResponse = gson.fromJson(storyboardJson, JsonObject.class);
-        JsonArray scenesArray = jsonResponse.getAsJsonArray("scenes");
-        
-        if (scenesArray == null || scenesArray.isEmpty()) {
-            throw new Exception("No scenes generated from the script");
-        }
-        
-        logger.info("Generated {} scenes from the script", scenesArray.size());
-        
-        // 3. 创建场景对象列表
-        List<Scene> scenes = new ArrayList<>();
-        
+        // 2. 为每个场景匹配角色
         // 获取所有角色名称（用于场景角色分析）
         String allCharacterNames = context.getCharacters().stream()
                 .map(c -> c.getName())
                 .collect(Collectors.joining(", "));
         
-        for (int i = 0; i < scenesArray.size(); i++) {
-            JsonObject sceneJson = scenesArray.get(i).getAsJsonObject();
+        for (int i = 0; i < scenes.size(); i++) {
+            Scene scene = scenes.get(i);
             
-            int sceneNumber = sceneJson.get("sceneNumber").getAsInt();
-            String description = sceneJson.get("description").getAsString();
-            String visualDescription = sceneJson.get("visualDescription").getAsString();
-            String dialogue = sceneJson.has("dialogue") ? sceneJson.get("dialogue").getAsString() : "";
-            
-            Scene scene = new Scene(sceneNumber, description);
-            scene.setVisualDescription(visualDescription);
-            scene.setDialogue(dialogue);
-            
-            // 4. 分析场景涉及的角色
-            logger.info("Analyzing characters for scene {}/{}", i + 1, scenesArray.size());
+            // 3. 分析场景涉及的角色
+            logger.info("Analyzing characters for scene {}/{}", i + 1, scenes.size());
             
             try {
                 String sceneCharactersJson = geminiTextService.analyzeSceneCharacters(
-                        description + " " + visualDescription, 
+                        scene.getVisualDescription() + " " + (scene.getDialogue() != null ? scene.getDialogue() : ""), 
                         allCharacterNames
                 );
                 
@@ -88,17 +70,15 @@ public class StoryboardGenerationStep implements WorkflowStep {
                     }
                     scene.setCharacterNames(characterNames);
                     
-                    logger.info("Scene {} involves characters: {}", sceneNumber, characterNames);
+                    logger.info("Scene {} involves characters: {}", scene.getSceneNumber(), characterNames);
                 }
             } catch (Exception e) {
-                logger.warn("Failed to analyze characters for scene {}: {}", sceneNumber, e.getMessage());
+                logger.warn("Failed to analyze characters for scene {}: {}", scene.getSceneNumber(), e.getMessage());
                 // 如果分析失败，默认使用主角
                 if (!context.getCharacters().isEmpty()) {
                     scene.addCharacterName(context.getMainCharacter().getName());
                 }
             }
-            
-            scenes.add(scene);
         }
         
         // 5. 创建 Storyboard 对象并保存到上下文

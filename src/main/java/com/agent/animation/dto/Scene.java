@@ -74,6 +74,11 @@ public class Scene {
         this.characterNames = characterNames;
     }
     
+    // Alias for setCharacterNames
+    public void setCharacters(List<String> characters) {
+        this.characterNames = characters;
+    }
+    
     public void addCharacterName(String characterName) {
         if (!this.characterNames.contains(characterName)) {
             this.characterNames.add(characterName);
