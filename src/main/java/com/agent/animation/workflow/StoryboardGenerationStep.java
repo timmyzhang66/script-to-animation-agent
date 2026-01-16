@@ -35,12 +35,60 @@ public class StoryboardGenerationStep implements WorkflowStep {
         logger.info("Starting storyboard generation step");
         
         String scriptContent = context.getScriptInput().getScriptContent();
+        List<Scene> scenes = null;
         
-        // 1. 使用 ScriptParser 解析脚本
-        logger.info("Parsing script to extract scenes and dialogues...");
-        List<Scene> scenes = scriptParser.parse(scriptContent);
+        // 1. 尝试使用 AI 生成分镜（主要方式）
+        try {
+            logger.info("Generating storyboard using AI...");
+            String storyboardJson = geminiTextService.generateStoryboard(scriptContent);
+            
+            logger.debug("Storyboard JSON: {}", storyboardJson);
+            
+            // 解析 JSON 响应
+            JsonObject jsonResponse = gson.fromJson(storyboardJson, JsonObject.class);
+            JsonArray scenesArray = jsonResponse.getAsJsonArray("scenes");
+            
+            if (scenesArray == null || scenesArray.isEmpty()) {
+                throw new Exception("No scenes generated from the script");
+            }
+            
+            logger.info("AI generated {} scenes from the script", scenesArray.size());
+            
+            // 创建场景对象列表
+            scenes = new ArrayList<>();
+            for (int i = 0; i < scenesArray.size(); i++) {
+                JsonObject sceneJson = scenesArray.get(i).getAsJsonObject();
+                
+                int sceneNumber = sceneJson.get("sceneNumber").getAsInt();
+                String description = sceneJson.get("description").getAsString();
+                String visualDescription = sceneJson.get("visualDescription").getAsString();
+                String dialogue = sceneJson.has("dialogue") ? sceneJson.get("dialogue").getAsString() : "";
+                
+                Scene scene = new Scene(sceneNumber, description);
+                scene.setVisualDescription(visualDescription);
+                scene.setDialogue(dialogue);
+                scenes.add(scene);
+            }
+        } catch (Exception e) {
+            logger.warn("AI storyboard generation failed: {}", e.getMessage());
+            logger.info("Falling back to ScriptParser...");
+            
+            // 2. 回退到 ScriptParser（备选方式）
+            try {
+                scenes = scriptParser.parse(scriptContent);
+                logger.info("ScriptParser successfully parsed {} scenes", scenes.size());
+            } catch (Exception parseError) {
+                logger.error("ScriptParser also failed: {}", parseError.getMessage());
+                throw new Exception("Both AI and ScriptParser failed to parse the script. " +
+                        "AI error: " + e.getMessage() + ". Parser error: " + parseError.getMessage());
+            }
+        }
         
-        logger.info("Parsed {} scenes from the script", scenes.size());
+        if (scenes == null || scenes.isEmpty()) {
+            throw new Exception("No scenes were generated from the script");
+        }
+        
+        logger.info("Successfully obtained {} scenes", scenes.size());
         
         // 2. 为每个场景匹配角色
         // 获取所有角色名称（用于场景角色分析）

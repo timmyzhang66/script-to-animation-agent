@@ -198,27 +198,36 @@ public class GeminiTextService {
      * @throws Exception 如果生成失败
      */
     public String generateStoryboard(String scriptContent) throws Exception {
-        String systemPrompt = "You are an expert storyboard artist. Your task is to break down scripts into scenes " +
-                "with detailed visual descriptions. Each scene should have a scene number, description, visual details, " +
-                "and dialogue. Output ONLY valid JSON format.";
+        String systemPrompt = "You are an expert storyboard artist and script analyzer. Your task is to break down scripts into scenes " +
+                "with detailed visual descriptions and extract dialogue accurately. Output ONLY valid JSON format.";
         
-        String userPrompt = "Break down the following script into scenes. For each scene, provide:\n" +
-                "1. sceneNumber: sequential number starting from 1\n" +
-                "2. description: what happens in the scene\n" +
-                "3. visualDescription: detailed visual description for image generation (camera angle, lighting, composition, colors, mood)\n" +
-                "4. dialogue: any spoken words in the scene, formatted as 'Character says, \"dialogue text\"' (use quotation marks)\n\n" +
+        String userPrompt = "Analyze the following script and break it down into scenes. \n\n" +
+                "IMPORTANT INSTRUCTIONS:\n" +
+                "1. Identify each scene carefully - look for scene markers like 'Scene X:', scene transitions, or location changes\n" +
+                "2. Extract dialogue EXACTLY as written in the script, preserving the original language and wording\n" +
+                "3. Format dialogue as 'Character says, \"exact dialogue text\"' - keep the original text inside quotes\n" +
+                "4. Create detailed visual descriptions suitable for image generation\n\n" +
+                "For each scene, provide:\n" +
+                "- sceneNumber: sequential number starting from 1\n" +
+                "- description: brief summary of what happens\n" +
+                "- visualDescription: detailed visual description (camera angle, lighting, composition, character positions, expressions, environment details, colors, mood)\n" +
+                "- dialogue: all spoken words in format 'Speaker says, \"exact words\"' (multiple lines separated by newlines if needed)\n\n" +
                 "Output format (JSON only, no markdown):\n" +
                 "{\n" +
                 "  \"scenes\": [\n" +
                 "    {\n" +
                 "      \"sceneNumber\": 1,\n" +
-                "      \"description\": \"...\",\n" +
-                "      \"visualDescription\": \"...\",\n" +
-                "      \"dialogue\": \"Character says, \\\"dialogue text\\\"\"\n" +
+                "      \"description\": \"Brief summary\",\n" +
+                "      \"visualDescription\": \"Detailed visual description for image generation\",\n" +
+                "      \"dialogue\": \"Character says, \\\"exact dialogue text\\\"\"\n" +
                 "    }\n" +
                 "  ]\n" +
                 "}\n\n" +
-                "Important: Format dialogue as 'Character says, \"dialogue text\"' with quotation marks around the spoken words.\n\n" +
+                "CRITICAL: \n" +
+                "- Extract dialogue EXACTLY as written, do not translate or modify\n" +
+                "- If the script already has 'Scene X:' markers, respect them\n" +
+                "- If dialogue is in Chinese, keep it in Chinese\n" +
+                "- Include ALL dialogue from each scene\n\n" +
                 "Script:\n" + scriptContent + "\n\n" +
                 "Storyboard JSON:";
         
