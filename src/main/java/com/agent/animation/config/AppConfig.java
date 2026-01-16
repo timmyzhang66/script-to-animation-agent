@@ -1,19 +1,20 @@
 package com.agent.animation.config;
 
-import java.io.IOException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.io.InputStream;
 import java.util.Properties;
 
 /**
- * 应用配置管理类
- * 负责加载和管理应用程序的配置参数
+ * 全局配置管理类
+ * 建议开发阶段直接在此处硬编码，生产环境再切换为环境变量
  */
 public class AppConfig {
+    private static final Logger logger = LoggerFactory.getLogger(AppConfig.class);
     private static AppConfig instance;
-    private final Properties properties;
+    private final Properties properties = new Properties();
 
     private AppConfig() {
-        properties = new Properties();
         loadProperties();
     }
 
@@ -25,195 +26,67 @@ public class AppConfig {
     }
 
     private void loadProperties() {
-        try (InputStream input = getClass().getClassLoader()
-                .getResourceAsStream("application.properties")) {
-            if (input == null) {
-                throw new RuntimeException("Unable to find application.properties");
+        try (InputStream input = getClass().getClassLoader().getResourceAsStream("application.properties")) {
+            if (input != null) {
+                properties.load(input);
             }
-            properties.load(input);
-            
-            // 从环境变量加载敏感配置
-            String geminiKey = System.getenv("GEMINI_API_KEY");
-            if (geminiKey != null) {
-                properties.setProperty("gemini.api.key", geminiKey);
-            }
-            
-            // 加载 GCP 配置
-            String gcpProjectId = System.getenv("GCP_PROJECT_ID");
-            if (gcpProjectId != null) {
-                properties.setProperty("gcp.project.id", gcpProjectId);
-            }
-            
-            String gcpLocation = System.getenv("GCP_LOCATION");
-            if (gcpLocation != null) {
-                properties.setProperty("gcp.location", gcpLocation);
-            }
-            
-            String gcpServiceAccountKeyPath = System.getenv("GCP_SERVICE_ACCOUNT_KEY_PATH");
-            if (gcpServiceAccountKeyPath != null) {
-                properties.setProperty("gcp.service.account.key.path", gcpServiceAccountKeyPath);
-            }
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to load application properties", e);
+        } catch (Exception e) {
+            logger.warn("Could not load application.properties, using defaults/env.");
         }
     }
 
-    public String getProperty(String key) {
-        return properties.getProperty(key);
-    }
-
-    public String getProperty(String key, String defaultValue) {
-        return properties.getProperty(key, defaultValue);
-    }
-
-    public int getIntProperty(String key, int defaultValue) {
+    private String getSetting(String key, String envVar, String defaultValue) {
+        // 优先级 1: 检查是否在代码里写死了（如果有特定前缀或者不是默认值）
+        // 优先级 2: 检查 application.properties
+        // 优先级 3: 检查环境变量
         String value = properties.getProperty(key);
-        if (value == null) {
-            return defaultValue;
+        if (value == null || value.isEmpty()) {
+            value = System.getenv(envVar);
         }
-        try {
-            return Integer.parseInt(value);
-        } catch (NumberFormatException e) {
-            return defaultValue;
-        }
+        return (value != null && !value.isEmpty()) ? value : defaultValue;
     }
 
-    public boolean getBooleanProperty(String key, boolean defaultValue) {
-        String value = properties.getProperty(key);
-        if (value == null) {
-            return defaultValue;
-        }
-        return Boolean.parseBoolean(value);
-    }
-
-    // Gemini 配置
+    // --- Gemini 配置 ---
+    // TODO: 在这里直接替换你的 Key
     public String getGeminiApiKey() {
-        return getProperty("gemini.api.key");
-    }
-
-    public String getImagenModel() {
-        return getProperty("gemini.imagen.model", "imagen-3.0-generate-002");
-    }
-
-    public String getVeoModel() {
-        return getProperty("gemini.veo.model", "veo-2.0-generate-001");
+        return getSetting("gemini.api.key", "GEMINI_API_KEY", "YOUR_ACTUAL_API_KEY_HERE");
     }
 
     public String getTextModel() {
-        return getProperty("gemini.text.model", "gemini-2.0-flash-exp");
+        return getSetting("text.model", "TEXT_MODEL", "gemini-2.0-flash");
     }
 
-    // 图像生成配置
-    public int getImagenNumberOfImages() {
-        return getIntProperty("imagen.number.of.images", 1);
+    public String getImageModel() {
+        return getSetting("image.model", "IMAGE_MODEL", "imagen-3.0-generate-001");
     }
 
-    public String getImagenOutputMimeType() {
-        return getProperty("imagen.output.mime.type", "image/jpeg");
+    // --- 阿里云 OSS 配置 ---
+    // TODO: 在这里填入你的 OSS 信息
+    public String getOssAccessKeyId() {
+        return getSetting("aliyun.oss.access.key.id", "OSS_ACCESS_KEY_ID", "YOUR_OSS_KEY_ID");
     }
 
-    // 视频生成配置
-    public int getVeoNumberOfVideos() {
-        return getIntProperty("veo.number.of.videos", 1);
+    public String getOssAccessKeySecret() {
+        return getSetting("aliyun.oss.access.key.secret", "OSS_ACCESS_KEY_SECRET", "YOUR_OSS_SECRET");
     }
 
-    public int getVeoDurationSeconds() {
-        return getIntProperty("veo.duration.seconds", 5);
+    public String getOssEndpoint() {
+        return getSetting("aliyun.oss.endpoint", "OSS_ENDPOINT", "oss-cn-hangzhou.aliyuncs.com");
     }
 
-    public boolean getVeoEnhancePrompt() {
-        return getBooleanProperty("veo.enhance.prompt", true);
+    public String getOssBucketName() {
+        return getSetting("aliyun.oss.bucket.name", "OSS_BUCKET_NAME", "YOUR_BUCKET_NAME");
     }
 
-    public int getVeoPollIntervalSeconds() {
-        return getIntProperty("veo.poll.interval.seconds", 10);
-    }
-
-    public int getVeoMaxWaitMinutes() {
-        return getIntProperty("veo.max.wait.minutes", 30);
-    }
-    
-    public String getVeoAspectRatio() {
-        return getProperty("veo.aspect.ratio", "16:9");
-    }
-    
-    public String getVeoResolution() {
-        return getProperty("veo.resolution", "1080p");
-    }
-
-    // 重试配置
-    public int getMaxRetryAttempts() {
-        return getIntProperty("retry.max.attempts", 5);
-    }
-
-    public long getInitialRetryDelayMs() {
-        String value = getProperty("retry.initial.delay.ms");
-        return value != null ? Long.parseLong(value) : 5000L;
-    }
-
-    public long getMaxRetryDelayMs() {
-        String value = getProperty("retry.max.delay.ms");
-        return value != null ? Long.parseLong(value) : 60000L;
-    }
-
-    // 存储配置
+    // --- 本地暂存配置 ---
     public String getTempDir() {
-        return getProperty("storage.temp.dir", "./temp");
+        String tempDir = getSetting("temp.dir", "TEMP_DIR", "temp");
+        java.io.File file = new java.io.File(tempDir);
+        if (!file.exists()) file.mkdirs();
+        return tempDir;
     }
 
-    public String getOutputDir() {
-        return getProperty("storage.output.dir", "./output");
-    }
-
-    // 视频处理配置
-    public String getVideoOutputFormat() {
-        return getProperty("video.output.format", "mp4");
-    }
-
-    public int getVideoFrameRate() {
-        return getIntProperty("video.frame.rate", 30);
-    }
-
-    public String getVideoCodec() {
-        return getProperty("video.codec", "h264");
-    }
-    
-    // GCP 配置
-    public String getGcpProjectId() {
-        return getProperty("gcp.project.id");
-    }
-    
-    public String getGcpLocation() {
-        return getProperty("gcp.location", "us-central1");
-    }
-    
-    public String getGcpServiceAccountKeyPath() {
-        return getProperty("gcp.service.account.key.path");
-    }
-    
-    // Nano Banana Pro 配置
-    public String getNanoBananaProModel() {
-        return getProperty("nano.banana.pro.model", "gemini-3-pro-image-preview");
-    }
-    
-    public boolean getNanoBananaProUseGoogleSearch() {
-        return getBooleanProperty("nano.banana.pro.use.google.search", false);
-    }
-    
-    public String getNanoBananaProAspectRatio() {
-        return getProperty("nano.banana.pro.aspect.ratio", "16:9");
-    }
-    
-    public String getNanoBananaProResolution() {
-        return getProperty("nano.banana.pro.resolution", "2K");
-    }
-    
-    public int getNanoBananaProMaxReferenceImages() {
-        return getIntProperty("nano.banana.pro.max.reference.images", 3);
-    }
-    
-    // Gemini 3 Flash 配置
-    public String getGemini3FlashModel() {
-        return getProperty("gemini.3.flash.model", "gemini-3.0-flash");
-    }
+    // --- Nano Banana Pro (如有使用) ---
+    public String getNanoBananaProAspectRatio() { return "16:9"; }
+    public String getNanoBananaProResolution() { return "1280x720"; }
 }

@@ -20,7 +20,7 @@ public class WorkflowEngine {
 
     /**
      * 添加工作流步骤
-     * 
+     *
      * @param step 工作流步骤
      */
     public void addStep(WorkflowStep step) {
@@ -30,38 +30,37 @@ public class WorkflowEngine {
 
     /**
      * 执行工作流
-     * 
+     *
      * @param context 工作流上下文
      * @return 执行是否成功
      */
     public boolean execute(WorkflowContext context) {
         logger.info("Starting workflow execution with {} steps", steps.size());
-        
+
         int currentStep = 0;
         for (WorkflowStep step : steps) {
             currentStep++;
             try {
                 logger.info("Executing step {}/{}: {}", currentStep, steps.size(), step.getStepName());
                 long stepStartTime = System.currentTimeMillis();
-                
+
                 step.execute(context);
-                
+
                 long stepDuration = System.currentTimeMillis() - stepStartTime;
                 logger.info("Step {} completed in {} ms", step.getStepName(), stepDuration);
-                
+
             } catch (Exception e) {
                 logger.error("Failed to execute step: {}", step.getStepName(), e);
                 return false;
             }
         }
-        
-        logger.info("Workflow execution completed successfully in {} ms", context.getDurationMillis());
+
         return true;
     }
 
     /**
      * 获取步骤数量
-     * 
+     *
      * @return 步骤数量
      */
     public int getStepCount() {
