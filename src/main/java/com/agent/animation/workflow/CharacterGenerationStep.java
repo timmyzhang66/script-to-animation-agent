@@ -1,6 +1,8 @@
 package com.agent.animation.workflow;
 
 import com.agent.animation.config.AppConfig;
+import com.agent.animation.core.registry.ActorRegistry;
+import com.agent.animation.domain.Actor;
 import com.agent.animation.dto.Character;
 import com.agent.animation.service.NanoBananaProService;
 import com.agent.animation.service.GeminiTextService;
@@ -16,8 +18,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 角色生成工作流步骤
- * 分析脚本中的所有角色并生成角色图像
+ * 工业化角色生成工作流步骤
+ * 优先从数字演员库匹配固定 IP，匹配失败时才调用 AI 生成新形象
  */
 public class CharacterGenerationStep implements WorkflowStep {
     private static final Logger logger = LoggerFactory.getLogger(CharacterGenerationStep.class);
@@ -37,101 +39,110 @@ public class CharacterGenerationStep implements WorkflowStep {
 
     @Override
     public void execute(WorkflowContext context) throws Exception {
-        logger.info("Starting character generation step");
-        
+        logger.info("Starting industrial character generation step");
+
+        // 初始化并加载数字演员注册表
+        ActorRegistry registry = new ActorRegistry();
+        // 建议：actors.json 的路径可以从 AppConfig 中动态获取
+        registry.loadConfig("src/main/resources/actors.json");
+
         String scriptContent = context.getScriptInput().getScriptContent();
-        
-        // 1. 使用 Gemini 3 Flash 分析脚本中的所有角色
+
+        // 1. 使用 Gemini 分析脚本中的所有角色
         logger.info("Analyzing all characters in the script...");
         String charactersJson = geminiTextService.analyzeCharacters(scriptContent);
-        
         logger.debug("Characters JSON: {}", charactersJson);
-        
+
         // 2. 解析 JSON 响应
         JsonObject jsonResponse = gson.fromJson(charactersJson, JsonObject.class);
         JsonArray charactersArray = jsonResponse.getAsJsonArray("characters");
-        
+
         if (charactersArray == null || charactersArray.isEmpty()) {
             throw new Exception("No characters found in the script");
         }
-        
+
         logger.info("Found {} characters in the script", charactersArray.size());
-        
-        // 3. 为每个角色生成图像
+
+        // 3. 角色处理逻辑（匹配或生成）
         List<Character> characters = new ArrayList<>();
-        
+
         for (int i = 0; i < charactersArray.size(); i++) {
             JsonObject charJson = charactersArray.get(i).getAsJsonObject();
-            
             String name = charJson.get("name").getAsString();
             String description = charJson.get("description").getAsString();
             String role = charJson.get("role").getAsString();
             boolean isMainCharacter = charJson.get("isMainCharacter").getAsBoolean();
-            
-            logger.info("Generating image for character {}/{}: {} ({})", 
-                    i + 1, charactersArray.size(), name, role);
-            
-            // 创建角色对象
-            Character character = new Character(name, description, role, isMainCharacter);
-            
-            // 生成角色图像
-            String characterImagePath = config.getTempDir() + File.separator + 
-                    "character_" + sanitizeFilename(name) + ".jpg";
-            
-            // 增强角色描述
-            String enhancedPrompt = buildCharacterPrompt(description, name, role);
-            
-            // 使用 Nano Banana Pro 生成图像
-            String aspectRatio = config.getNanoBananaProAspectRatio();
-            String resolution = config.getNanoBananaProResolution();
-            
-            try {
-                String base64Image = nanoBananaProService.generateImage(
-                        enhancedPrompt,
-                        aspectRatio,
-                        resolution
-                );
-                
-                // 保存图像到本地
-                nanoBananaProService.saveImageToFile(base64Image, characterImagePath);
-                character.setImagePath(characterImagePath);
-                
-                // 上传到 OSS 并获取 URL
-                logger.info("Uploading character image to OSS: {}", name);
-                String characterImageUrl = ossService.uploadFile(characterImagePath, null);
-                character.setImageUrl(characterImageUrl);
-                
-                logger.info("Character image generated and uploaded: {}", name);
-                logger.info("  Local path: {}", characterImagePath);
-                logger.info("  OSS URL: {}", characterImageUrl);
-                
-                // 添加到角色列表
+
+            logger.info("Processing character {}/{}: {} ({})", i + 1, charactersArray.size(), name, role);
+
+            // --- 核心工业化逻辑：尝试从库中匹配固定演员 ---
+            Actor actor = registry.matchActor(name);
+            Character character;
+
+            if (actor != null) {
+                logger.info("Industrial Match SUCCESS: Detected persistent IP for '{}'", name);
+                // 匹配成功：直接引用库中定义的固定描述和 OSS 锚点图
+                character = new Character(actor.getName(), actor.getVisualAnchor(), "Persistent_IP", actor.isMain());
+                character.setImageUrl(actor.getFixedOssUrl());
+            } else {
+                logger.info("No persistent IP found for '{}', generating new image...", name);
+                // 匹配失败：调用封装好的生成逻辑
+                character = generateNewCharacterImage(name, description, role, isMainCharacter);
+            }
+
+            if (character != null) {
                 characters.add(character);
-                
-            } catch (Exception e) {
-                logger.error("Failed to generate image for character: {}", name, e);
-                // 继续处理其他角色，不中断整个流程
             }
         }
-        
+
         if (characters.isEmpty()) {
-            throw new Exception("Failed to generate images for all characters");
+            throw new Exception("Failed to generate or map any characters");
         }
-        
+
         // 4. 保存所有角色到上下文
         context.setCharacters(characters);
-        
-        logger.info("Character generation completed for {} characters", characters.size());
-        
-        // 打印角色摘要
-        logger.info("Character Summary:");
-        for (Character character : characters) {
-            logger.info("  - {} ({}): {}", 
-                    character.getName(), 
-                    character.getRole(), 
-                    character.isMainCharacter() ? "MAIN" : "SUPPORTING");
-            logger.info("    Image: {}", character.getImagePath());
-            logger.info("    URL: {}", character.getImageUrl());
+        logger.info("Industrial character processing completed for {} characters", characters.size());
+
+        // 打印结果摘要
+        for (Character c : characters) {
+            logger.info("Character Ready - Name: {}, Source: {}, URL: {}",
+                    c.getName(), c.getRole(), c.getImageUrl());
+        }
+    }
+
+    /**
+     * 封装原来的生成逻辑：调用 AI 模型生成全新的角色形象并上传
+     */
+    private Character generateNewCharacterImage(String name, String description, String role, boolean isMainCharacter) {
+        try {
+            Character character = new Character(name, description, role, isMainCharacter);
+
+            // 准备本地存储路径
+            String characterImagePath = config.getTempDir() + File.separator +
+                    "gen_character_" + sanitizeFilename(name) + ".jpg";
+
+            // 增强 Prompt
+            String enhancedPrompt = buildCharacterPrompt(description, name, role);
+
+            // 调用图像生成服务 (Gemini 2.5 Flash Image / Nano Banana Pro)
+            String base64Image = nanoBananaProService.generateImage(
+                    enhancedPrompt,
+                    config.getNanoBananaProAspectRatio(),
+                    config.getNanoBananaProResolution()
+            );
+
+            // 保存并上传资产
+            nanoBananaProService.saveImageToFile(base64Image, characterImagePath);
+            character.setImagePath(characterImagePath);
+
+            logger.info("Uploading generated character image to OSS: {}", name);
+            String characterImageUrl = ossService.uploadFile(characterImagePath, null);
+            character.setImageUrl(characterImageUrl);
+
+            return character;
+        } catch (Exception e) {
+            logger.error("Failed to generate new AI image for character: {}", name, e);
+            return null; // 返回 null 允许工作流尝试继续处理其他角色
         }
     }
 
@@ -140,26 +151,14 @@ public class CharacterGenerationStep implements WorkflowStep {
      */
     private String buildCharacterPrompt(String description, String name, String role) {
         StringBuilder prompt = new StringBuilder();
-        
-        // 添加角色名称和角色类型
         prompt.append("Character: ").append(name).append(" (").append(role).append(")\n\n");
-        
-        // 添加角色描述
         prompt.append(description);
-        
-        // 添加质量和风格要求
         prompt.append("\n\nStyle requirements:");
-        prompt.append("\n- High-quality character design");
-        prompt.append("\n- Professional animation style");
-        prompt.append("\n- Clear and detailed features");
-        prompt.append("\n- Consistent and memorable appearance");
-        prompt.append("\n- Suitable for animation and storytelling");
-        prompt.append("\n- Full body or portrait view with clear visibility of key features");
-        prompt.append("\n- Neutral background to focus on the character");
-        
+        prompt.append("\n- High-quality character design, Professional animation style");
+        prompt.append("\n- Clear features, Consistent appearance, Neutral background");
         return prompt.toString();
     }
-    
+
     /**
      * 清理文件名，移除非法字符
      */
@@ -169,6 +168,6 @@ public class CharacterGenerationStep implements WorkflowStep {
 
     @Override
     public String getStepName() {
-        return "Character Generation (Multi-Character)";
+        return "Industrial Character Generation";
     }
 }

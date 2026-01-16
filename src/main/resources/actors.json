@@ -1,0 +1,18 @@
+{
+  "actors": [
+    {
+      "id": "Workplace_Zhenhuan",
+      "name": "职场甄嬛",
+      "visual_anchor": "2D professional anime style, sharp eyes with purple eyeshadow, a small mole under the left eye, bold red lips. Wearing a modern grey blazer. Expression: Contemptuous and calm.",
+      "fixed_oss_url": "https://your-bucket.oss-cn-hangzhou.aliyuncs.com/assets/zhenhuan_anchor.jpg",
+      "isMainCharacter": true
+    },
+    {
+      "id": "Workplace_Feiwen",
+      "name": "职场斐雯",
+      "visual_anchor": "2D anime style, hunched posture, thick black-framed glasses with reflections. Expression: Sneaky, shifty eyes. Wearing a buttoned-up plain white shirt.",
+      "fixed_oss_url": "https://your-bucket.oss-cn-hangzhou.aliyuncs.com/assets/feiwen_anchor.jpg",
+      "isMainCharacter": false
+    }
+  ]
+}
