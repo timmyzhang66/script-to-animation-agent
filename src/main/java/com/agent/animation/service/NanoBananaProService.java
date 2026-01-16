@@ -342,14 +342,30 @@ public class NanoBananaProService {
      */
     private String extractImageFromResponse(JsonObject responseJson) throws Exception {
         try {
+            // 输出完整响应以便调试
+            logger.debug("Full API response: {}", responseJson.toString());
+            
             JsonArray candidates = responseJson.getAsJsonArray("candidates");
             if (candidates == null || candidates.size() == 0) {
+                logger.error("No candidates in response. Response keys: {}", responseJson.keySet());
                 throw new Exception("No candidates in response");
             }
             
             JsonObject candidate = candidates.get(0).getAsJsonObject();
+            logger.debug("Candidate keys: {}", candidate.keySet());
+            
             JsonObject content = candidate.getAsJsonObject("content");
+            if (content == null) {
+                logger.error("No content in candidate. Candidate: {}", candidate.toString());
+                throw new Exception("No content in candidate");
+            }
+            logger.debug("Content keys: {}", content.keySet());
+            
             JsonArray parts = content.getAsJsonArray("parts");
+            if (parts == null) {
+                logger.error("No parts in content. Content: {}", content.toString());
+                throw new Exception("No parts in content");
+            }
             
             // 查找图像部分
             for (int i = 0; i < parts.size(); i++) {
