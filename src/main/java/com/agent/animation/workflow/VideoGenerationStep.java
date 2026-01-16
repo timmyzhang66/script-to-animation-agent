@@ -9,11 +9,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 
-/**
- * 视频生成工作流步骤
- * 为每个场景的关键帧生成视频片段
- * 使用 OSS URL 传递关键帧图像，并上传生成的视频到 OSS
- */
 public class VideoGenerationStep implements WorkflowStep {
     private static final Logger logger = LoggerFactory.getLogger(VideoGenerationStep.class);
     private final GeminiService geminiService;
@@ -28,108 +23,65 @@ public class VideoGenerationStep implements WorkflowStep {
 
     @Override
     public void execute(WorkflowContext context) throws Exception {
-        logger.info("Starting video generation step");
-        
-        // 为每个场景生成视频
-        int sceneIndex = 0;
+        logger.info("Starting industrial video generation step");
+
         for (Scene scene : context.getStoryboard().getScenes()) {
-            sceneIndex++;
-            logger.info("Generating video for scene {}/{}", 
-                    sceneIndex, context.getStoryboard().getSceneCount());
-            
-            String videoPath = config.getTempDir() + File.separator + 
-                    "video_scene_" + scene.getSceneNumber() + ".mp4";
-            
+            logger.info("Generating video for scene {}/{} with Action: {}",
+                    scene.getSceneNumber(), context.getStoryboard().getSceneCount(), scene.getActionCode());
+
+            String videoPath = config.getTempDir() + File.separator + "video_scene_" + scene.getSceneNumber() + ".mp4";
+
             try {
-                // 1. 构建视频生成提示词
-                String videoPrompt = buildVideoPrompt(scene, context);
-                
-                // 2. 使用关键帧 URL 生成视频（而不是本地路径）
-                String keyframeUrl = scene.getKeyframeUrl();
-                
-                if (keyframeUrl == null || keyframeUrl.isEmpty()) {
-                    logger.warn("No keyframe URL for scene {}, using local path", scene.getSceneNumber());
-                    keyframeUrl = scene.getKeyframePath();
-                }
-                
-                logger.info("Generating video with keyframe URL: {}", keyframeUrl);
-                
-                // 调用 Veo API 生成视频
-                geminiService.generateVideoFromImageUrl(
-                        videoPrompt,
-                        keyframeUrl,
-                        videoPath
-                );
-                
+                String videoPrompt = buildVideoPrompt(scene);
+                String keyframeUrl = scene.getKeyframeUrl() != null ? scene.getKeyframeUrl() : scene.getKeyframePath();
+
+                geminiService.generateVideoFromImageUrl(videoPrompt, keyframeUrl, videoPath);
+
                 scene.setVideoPath(videoPath);
-                
-                // 3. 上传视频到 GCS
-                logger.info("Uploading video to OSS for scene {}", scene.getSceneNumber());
                 String videoUrl = ossService.uploadFile(videoPath, null);
                 scene.setVideoUrl(videoUrl);
-                
-                logger.info("Video generated for scene {}", scene.getSceneNumber());
-                logger.info("  Local path: {}", videoPath);
-                logger.info("  OSS URL: {}", videoUrl);
-                
+
+                logger.info("Scene {} Video Ready: {}", scene.getSceneNumber(), videoUrl);
             } catch (Exception e) {
-                logger.error("Failed to generate video for scene {}", scene.getSceneNumber(), e);
-                throw new Exception("Video generation failed for scene " + scene.getSceneNumber(), e);
+                logger.error("Failed at scene {}", scene.getSceneNumber(), e);
+                throw e;
             }
         }
-        
-        logger.info("Video generation completed for all {} scenes", 
-                context.getStoryboard().getSceneCount());
     }
 
-    /**
-     * 构建视频生成的提示词
-     * 按照 Veo 3.1 的最佳实践格式化对话
-     */
-    private String buildVideoPrompt(Scene scene, WorkflowContext context) {
-        StringBuilder prompt = new StringBuilder();
-        
-        // 1. 添加视觉描述（如果有）
-        if (scene.getVisualDescription() != null && !scene.getVisualDescription().isEmpty()) {
-            prompt.append(scene.getVisualDescription());
-        } else {
-            // 如果没有视觉描述，使用场景描述
-            prompt.append(scene.getDescription());
+    private String buildVideoPrompt(Scene scene) {
+        StringBuilder prompt = new StringBuilder(scene.getVisualDescription());
+
+        // --- 核心：将 ActionCode 转化为 Veo 的物理表演指令 ---
+        String code = scene.getActionCode() != null ? scene.getActionCode() : "CALM_REPLY";
+        switch (code) {
+            case "LOOK_DOWN_CONTEMPT":
+                prompt.append(". Extreme close-up on eyes, sharp gaze looking down with total contempt.");
+                break;
+            case "SMIRK":
+                prompt.append(". A subtle, arrogant smirk, corner of the mouth lifting slightly, anime style.");
+                break;
+            case "ANGRY_SLAM":
+                prompt.append(". Violent motion, character slams table with palm, expressive frustration.");
+                break;
+            case "SHIFTY_EYES":
+                prompt.append(". Shifty eyes moving left and right nervously, beads of sweat on forehead.");
+                break;
+            case "SHOCK":
+                prompt.append(". Eyes wide open, mouth agape, frozen in disbelief, dramatic anime expression.");
+                break;
+            default:
+                prompt.append(". Natural facial animation, subtle lip movements for dialogue.");
         }
-        
-        // 2. 添加对话（按照 Veo 3.1 格式）
+
         if (scene.getDialogue() != null && !scene.getDialogue().isEmpty()) {
-            String dialogue = scene.getDialogue().trim();
-            
-            // 检查对话是否已经包含引号和 "says" 格式
-            if (!dialogue.contains("\"") && !dialogue.toLowerCase().contains("says")) {
-                // 如果没有，添加基本的对话格式
-                // 尝试从角色名称中获取第一个角色
-                String characterName = "The character";
-                if (!scene.getCharacterNames().isEmpty()) {
-                    characterName = scene.getCharacterNames().get(0);
-                }
-                prompt.append(". ").append(characterName).append(" says, \"").append(dialogue).append("\"");
-            } else {
-                // 已经是正确的格式，直接添加
-                prompt.append(". ").append(dialogue);
-            }
+            prompt.append(". Dialogue: ").append(scene.getDialogue());
         }
-        
-        // 3. 添加音效提示（可选）
-        // 例如：SFX: footsteps, ambient noise: wind
-        // 这里可以根据场景类型添加适当的环境音
-        
-        // 4. 添加动画要求
-        prompt.append("\n\nAnimation style: Smooth and natural motion, maintain character consistency, cinematic quality.");
-        
-        logger.debug("Video prompt for scene {}: {}", scene.getSceneNumber(), prompt.toString());
-        
+
+        prompt.append("\n\nStyle: Smooth 2D animation, maintain IP consistency.");
         return prompt.toString();
     }
 
     @Override
-    public String getStepName() {
-        return "Video Generation";
-    }
+    public String getStepName() { return "Instructional Video Generation"; }
 }

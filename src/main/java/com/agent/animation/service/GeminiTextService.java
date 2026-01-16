@@ -8,13 +8,8 @@ import com.google.genai.types.GenerateContentResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * Gemini 文本服务类
- * 负责调用 Gemini API 进行文本生成和脚本分析
- */
 public class GeminiTextService {
     private static final Logger logger = LoggerFactory.getLogger(GeminiTextService.class);
-    
     private final AppConfig config;
     private final Client client;
     private final String modelName;
@@ -23,247 +18,55 @@ public class GeminiTextService {
         this.config = AppConfig.getInstance();
         String apiKey = config.getGeminiApiKey();
         this.modelName = config.getTextModel();
-        
-        if (apiKey == null || apiKey.isEmpty()) {
-            throw new IllegalStateException("GEMINI_API_KEY environment variable is not set");
-        }
-        
-        // 创建 Gemini Client
-        // 支持 Vertex AI Express Mode（使用 API Key 访问 Vertex AI）
-        this.client = Client.builder()
-                .apiKey(apiKey)
-                .vertexAI(true)  // 启用 Vertex AI Express Mode
-                .build();
-        
-        logger.info("GeminiTextService initialized with model: {}", modelName);
+        this.client = Client.builder().apiKey(apiKey).vertexAI(true).build();
     }
 
-    /**
-     * 调用 Gemini API 生成文本
-     * 
-     * @param systemPrompt 系统提示词
-     * @param userPrompt 用户提示词
-     * @return 生成的文本内容
-     * @throws Exception 如果 API 调用失败
-     */
+    // --- 新增：工业化分镜生成方法 ---
+    public String generateIndustrialStoryboard(String scriptContent, String actorContext) throws Exception {
+        String systemPrompt = "You are a professional Animation Director. Your goal is to convert scripts into instructional storyboards for AI Video Generation.";
+
+        String userPrompt = "### IP Actor Context (Prioritize these characters):\n" + actorContext + "\n\n" +
+                "### Script:\n" + scriptContent + "\n\n" +
+                "### Task:\n" +
+                "Break this into scenes. For each scene, you MUST provide:\n" +
+                "1. sceneNumber (int)\n" +
+                "2. description (brief summary)\n" +
+                "3. visualDescription (cinematic 2D anime style, camera angle)\n" +
+                "4. dialogue (Standard format: 'Character says, \"...\"')\n" +
+                "5. actionCode: Select ONE from [LOOK_DOWN_CONTEMPT, SMIRK, ANGRY_SLAM, SHIFTY_EYES, SHOCK, CALM_REPLY]\n\n" +
+                "Output ONLY valid JSON.";
+
+        String response = generateText(systemPrompt, userPrompt);
+        return cleanJsonResponse(response);
+    }
+
     public String generateText(String systemPrompt, String userPrompt) throws Exception {
         return RetryUtils.executeWithRetry(() -> {
-            try {
-                logger.info("Generating text with Gemini model: {}", modelName);
-                
-                // 构建完整的提示词
-                String fullPrompt = systemPrompt + "\n\n" + userPrompt;
-                
-                // 配置生成参数
-                GenerateContentConfig contentConfig = GenerateContentConfig.builder()
-                        .temperature(0.7f)
-                        .topK(40f)
-                        .topP(0.95f)
-                        .maxOutputTokens(8192)
-                        .build();
-                
-                // 调用 API
-                GenerateContentResponse response = client.models.generateContent(
-                        modelName, 
-                        fullPrompt, 
-                        contentConfig
-                );
-                
-                // 提取响应文本
-                String responseText = response.text();
-                
-                if (responseText == null || responseText.trim().isEmpty()) {
-                    throw new Exception("Empty content returned from Gemini");
-                }
-                
-                logger.info("Text generation completed, length: {} characters", responseText.length());
-                return responseText.trim();
-                
-            } catch (Exception e) {
-                logger.error("Gemini API call failed: {}", e.getMessage());
-                throw e;
-            }
+            String fullPrompt = systemPrompt + "\n\n" + userPrompt;
+            GenerateContentConfig contentConfig = GenerateContentConfig.builder()
+                    .temperature(0.7f).maxOutputTokens(8192).build();
+            GenerateContentResponse response = client.models.generateContent(modelName, fullPrompt, contentConfig);
+            return response.text().trim();
         });
     }
 
-    /**
-     * 分析脚本中的所有角色
-     * 
-     * @param scriptContent 脚本内容
-     * @return JSON 格式的角色列表
-     * @throws Exception 如果分析失败
-     */
     public String analyzeCharacters(String scriptContent) throws Exception {
-        String systemPrompt = "You are an expert in analyzing scripts and identifying characters. " +
-                "Your task is to identify ALL characters in the script, including main characters and supporting characters. " +
-                "For each character, provide a detailed visual description suitable for image generation.";
-        
-        String userPrompt = "Analyze the following script and identify ALL characters. For each character, provide:\n" +
-                "1. name: character's name\n" +
-                "2. description: detailed visual description (physical appearance, clothing, distinctive features)\n" +
-                "3. role: character's role (e.g., 'protagonist', 'antagonist', 'supporting')\n" +
-                "4. isMainCharacter: true if this is the main character, false otherwise\n\n" +
-                "Output format (JSON only, no markdown):\n" +
-                "{\n" +
-                "  \"characters\": [\n" +
-                "    {\n" +
-                "      \"name\": \"...\",\n" +
-                "      \"description\": \"...\",\n" +
-                "      \"role\": \"...\",\n" +
-                "      \"isMainCharacter\": true/false\n" +
-                "    }\n" +
-                "  ]\n" +
-                "}\n\n" +
-                "Script:\n" + scriptContent + "\n\n" +
-                "Characters JSON:";
-        
-        String response = generateText(systemPrompt, userPrompt);
-        
-        // 清理响应，移除可能的 markdown 代码块标记
-        response = response.trim();
-        if (response.startsWith("```json")) {
-            response = response.substring(7);
-        } else if (response.startsWith("```")) {
-            response = response.substring(3);
-        }
-        if (response.endsWith("```")) {
-            response = response.substring(0, response.length() - 3);
-        }
-        
-        return response.trim();
-    }
-    
-    /**
-     * 从脚本中提取主要角色描述（兼容旧代码）
-     * 
-     * @param scriptContent 脚本内容
-     * @return 角色描述文本
-     * @throws Exception 如果提取失败
-     */
-    public String extractCharacterDescription(String scriptContent) throws Exception {
-        String systemPrompt = "You are an expert in analyzing scripts and extracting character descriptions. " +
-                "Your task is to identify the main character from the script and provide a detailed visual description " +
-                "that can be used for image generation.";
-        
-        String userPrompt = "Analyze the following script and extract a detailed description of the MAIN CHARACTER. " +
-                "Include physical appearance, clothing, distinctive features, and any visual characteristics mentioned. " +
-                "Provide the description in a single paragraph, suitable for image generation.\n\n" +
-                "Script:\n" + scriptContent + "\n\n" +
-                "Character Description:";
-        
-        return generateText(systemPrompt, userPrompt);
+        String systemPrompt = "Identify ALL characters and provide detailed visual descriptions for image generation.";
+        String userPrompt = "Analyze script:\n" + scriptContent + "\nOutput JSON: {characters: [{name, description, role, isMainCharacter}]}";
+        return cleanJsonResponse(generateText(systemPrompt, userPrompt));
     }
 
-    /**
-     * 分析场景中涉及的角色
-     * 
-     * @param sceneDescription 场景描述
-     * @param allCharacterNames 所有角色名称列表
-     * @return JSON 格式的角色名称列表
-     * @throws Exception 如果分析失败
-     */
     public String analyzeSceneCharacters(String sceneDescription, String allCharacterNames) throws Exception {
-        String systemPrompt = "You are an expert at analyzing scene descriptions and identifying which characters appear in each scene.";
-        
-        String userPrompt = "Based on the scene description, identify which characters from the character list appear in this scene.\n\n" +
-                "Available characters: " + allCharacterNames + "\n\n" +
-                "Scene description: " + sceneDescription + "\n\n" +
-                "Output format (JSON only, no markdown):\n" +
-                "{\n" +
-                "  \"characterNames\": [\"character1\", \"character2\"]\n" +
-                "}\n\n" +
-                "Characters in scene JSON:";
-        
-        String response = generateText(systemPrompt, userPrompt);
-        
-        // 清理响应
-        response = response.trim();
-        if (response.startsWith("```json")) {
-            response = response.substring(7);
-        } else if (response.startsWith("```")) {
-            response = response.substring(3);
-        }
-        if (response.endsWith("```")) {
-            response = response.substring(0, response.length() - 3);
-        }
-        
-        return response.trim();
-    }
-    
-    /**
-     * 生成分镜脚本
-     * 
-     * @param scriptContent 原始脚本内容
-     * @return JSON 格式的分镜数据
-     * @throws Exception 如果生成失败
-     */
-    public String generateStoryboard(String scriptContent) throws Exception {
-        String systemPrompt = "You are an expert storyboard artist. Your task is to break down scripts into scenes " +
-                "with detailed visual descriptions. Each scene should have a scene number, description, visual details, " +
-                "and dialogue. Output ONLY valid JSON format.";
-        
-        String userPrompt = "Break down the following script into scenes. For each scene, provide:\n" +
-                "1. sceneNumber: sequential number starting from 1\n" +
-                "2. description: what happens in the scene\n" +
-                "3. visualDescription: detailed visual description for image generation (camera angle, lighting, composition, colors, mood)\n" +
-                "4. dialogue: any spoken words in the scene, formatted as 'Character says, \"dialogue text\"' (use quotation marks)\n\n" +
-                "Output format (JSON only, no markdown):\n" +
-                "{\n" +
-                "  \"scenes\": [\n" +
-                "    {\n" +
-                "      \"sceneNumber\": 1,\n" +
-                "      \"description\": \"...\",\n" +
-                "      \"visualDescription\": \"...\",\n" +
-                "      \"dialogue\": \"Character says, \\\"dialogue text\\\"\"\n" +
-                "    }\n" +
-                "  ]\n" +
-                "}\n\n" +
-                "Important: Format dialogue as 'Character says, \"dialogue text\"' with quotation marks around the spoken words.\n\n" +
-                "Script:\n" + scriptContent + "\n\n" +
-                "Storyboard JSON:";
-        
-        String response = generateText(systemPrompt, userPrompt);
-        
-        // 清理响应，移除可能的 markdown 代码块标记
-        response = response.trim();
-        if (response.startsWith("```json")) {
-            response = response.substring(7);
-        } else if (response.startsWith("```")) {
-            response = response.substring(3);
-        }
-        if (response.endsWith("```")) {
-            response = response.substring(0, response.length() - 3);
-        }
-        
-        return response.trim();
+        String systemPrompt = "Identify which characters appear in this scene.";
+        String userPrompt = "Available characters: " + allCharacterNames + "\nScene: " + sceneDescription + "\nOutput JSON: {characterNames: []}";
+        return cleanJsonResponse(generateText(systemPrompt, userPrompt));
     }
 
-    /**
-     * 增强场景的视觉描述
-     * 
-     * @param sceneDescription 场景描述
-     * @param characterDescription 角色描述（用于保持一致性）
-     * @return 增强后的视觉描述
-     * @throws Exception 如果生成失败
-     */
-    public String enhanceVisualDescription(String sceneDescription, String characterDescription) throws Exception {
-        String systemPrompt = "You are an expert at creating detailed visual descriptions for image generation. " +
-                "Your descriptions should be specific, vivid, and suitable for AI image generation models.";
-        
-        String userPrompt = "Enhance the following scene description with detailed visual elements. " +
-                "Include camera angle, lighting, composition, colors, mood, and any relevant details. " +
-                "Make sure the main character matches this description: " + characterDescription + "\n\n" +
-                "Scene: " + sceneDescription + "\n\n" +
-                "Enhanced Visual Description:";
-        
-        return generateText(systemPrompt, userPrompt);
-    }
-
-    /**
-     * 关闭服务（清理资源）
-     */
-    public void close() {
-        // Gemini SDK 不需要显式关闭
-        logger.info("GeminiTextService closed");
+    private String cleanJsonResponse(String response) {
+        response = response.trim();
+        if (response.startsWith("```json")) response = response.substring(7);
+        else if (response.startsWith("```")) response = response.substring(3);
+        if (response.endsWith("```")) response = response.substring(0, response.length() - 3);
+        return response.trim();
     }
 }
