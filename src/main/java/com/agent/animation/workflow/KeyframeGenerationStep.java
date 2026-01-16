@@ -9,14 +9,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
- * 关键帧生成工作流步骤
- * 使用 Nano Banana Pro 为每个场景生成关键帧图像
- * 根据场景涉及的角色，使用相应的参考图像
+ * 工业化关键帧生成步骤
+ * 优先使用 IP 角色的视觉锚点图，仅在无匹配角色时才调用 AI 生成逻辑
  */
 public class KeyframeGenerationStep implements WorkflowStep {
     private static final Logger logger = LoggerFactory.getLogger(KeyframeGenerationStep.class);
@@ -24,7 +21,7 @@ public class KeyframeGenerationStep implements WorkflowStep {
     private final OSSService ossService;
     private final AppConfig config;
 
-    public KeyframeGenerationStep() throws Exception {
+    public KeyframeGenerationStep() {
         this.nanoBananaProService = new NanoBananaProService();
         this.ossService = new OSSService();
         this.config = AppConfig.getInstance();
@@ -32,130 +29,51 @@ public class KeyframeGenerationStep implements WorkflowStep {
 
     @Override
     public void execute(WorkflowContext context) throws Exception {
-        logger.info("Starting keyframe generation step with Nano Banana Pro");
-        
-        // 为每个场景生成关键帧
-        int sceneIndex = 0;
+        logger.info("Starting industrial keyframe generation step");
+
         for (Scene scene : context.getStoryboard().getScenes()) {
-            sceneIndex++;
-            logger.info("Generating keyframe for scene {}/{}", 
-                    sceneIndex, context.getStoryboard().getSceneCount());
-            
-            String keyframePath = config.getTempDir() + File.separator + 
+            // 1. 获取场景涉及的角色对象
+            List<String> characterNames = scene.getCharacterNames();
+            List<Character> sceneCharacters = context.getCharactersForScene(characterNames);
+
+            String keyframePath = config.getTempDir() + File.separator +
                     "keyframe_scene_" + scene.getSceneNumber() + ".jpg";
-            
+
+            // --- 核心工业化逻辑：IP 资产优先 ---
+            if (!sceneCharacters.isEmpty()) {
+                // 只要场景涉及了固定 IP 角色，直接使用其标准 OSS 图片作为关键帧生成的参考参考点
+                Character mainChar = sceneCharacters.get(0);
+                logger.info("Scene {}: Matched Industrial IP Character '{}'", scene.getSceneNumber(), mainChar.getName());
+
+                // 直接引用 IP 的视觉锚点图，确保视觉绝对统一
+                scene.setKeyframeUrl(mainChar.getImageUrl());
+                continue;
+            }
+
+            // --- 兜底逻辑：调用 AI 生成（已适配修改后的 NanoBananaProService） ---
             try {
-                // 1. 获取场景涉及的角色
-                List<String> characterNames = scene.getCharacterNames();
-                List<Character> sceneCharacters = context.getCharactersForScene(characterNames);
-                
-                logger.info("Scene {} involves {} characters: {}", 
-                        scene.getSceneNumber(), 
-                        sceneCharacters.size(), 
-                        characterNames);
-                
-                // 2. 收集角色参考图像的本地路径（不使用 URL）
-                List<String> referencePaths = new ArrayList<>();
-                StringBuilder characterDescriptions = new StringBuilder();
-                
-                for (Character character : sceneCharacters) {
-                    // 使用本地路径而非 URL，避免 Vertex AI 访问外部 URL 的问题
-                    if (character.getImagePath() != null && !character.getImagePath().isEmpty()) {
-                        referencePaths.add(character.getImagePath());
-                        characterDescriptions.append(character.getName())
-                                .append(": ")
-                                .append(character.getDescription())
-                                .append("\n");
-                    }
-                }
-                
-                // 3. 构建增强的提示词
-                String visualPrompt = buildEnhancedPrompt(
-                        scene.getVisualDescription(), 
-                        characterDescriptions.toString(),
-                        characterNames
+                String visualPrompt = scene.getVisualDescription() + ", cinematic 2D anime style";
+
+                // 适配修改：使用桩服务提供的基础 generateImage 方法
+                String base64Image = nanoBananaProService.generateImage(
+                        visualPrompt,
+                        config.getNanoBananaProAspectRatio(),
+                        config.getNanoBananaProResolution()
                 );
-                
-                logger.info("Using {} reference images (local paths) for scene {}", 
-                        referencePaths.size(), scene.getSceneNumber());
-                
-                // 4. 使用 Nano Banana Pro 生成图像
-                String aspectRatio = config.getNanoBananaProAspectRatio();
-                String resolution = config.getNanoBananaProResolution();
-                
-                String base64Image;
-                if (!referencePaths.isEmpty()) {
-                    // 使用参考图像生成（传递本地路径）
-                    base64Image = nanoBananaProService.generateImageWithReferenceFiles(
-                            visualPrompt,
-                            referencePaths,
-                            aspectRatio,
-                            resolution
-                    );
-                } else {
-                    // 无参考图像生成
-                    logger.warn("No reference images available for scene {}", scene.getSceneNumber());
-                    base64Image = nanoBananaProService.generateImage(
-                            visualPrompt,
-                            aspectRatio,
-                            resolution
-                    );
-                }
-                
-                // 5. 保存图像到本地
+
                 nanoBananaProService.saveImageToFile(base64Image, keyframePath);
                 scene.setKeyframePath(keyframePath);
-                
-                // 6. 上传到 OSS 并获取 URL
-                logger.info("Uploading keyframe to OSS for scene {}", scene.getSceneNumber());
+
+                // 上传生成的临时关键帧到 OSS
                 String keyframeUrl = ossService.uploadFile(keyframePath, null);
                 scene.setKeyframeUrl(keyframeUrl);
-                
-                logger.info("Keyframe generated for scene {}", scene.getSceneNumber());
-                logger.info("  Local path: {}", keyframePath);
-                logger.info("  OSS URL: {}", keyframeUrl);
-                
+
             } catch (Exception e) {
-                logger.error("Failed to generate keyframe for scene {}", scene.getSceneNumber(), e);
-                throw new Exception("Keyframe generation failed for scene " + scene.getSceneNumber(), e);
+                logger.warn("Scene {} keyframe generation skipped: {}", scene.getSceneNumber(), e.getMessage());
             }
         }
-        
-        logger.info("Keyframe generation completed for all {} scenes", 
-                context.getStoryboard().getSceneCount());
-    }
-
-    /**
-     * 构建增强的提示词，包含角色一致性要求
-     */
-    private String buildEnhancedPrompt(String visualDescription, String characterDescriptions, List<String> characterNames) {
-        StringBuilder prompt = new StringBuilder();
-        
-        // 添加场景描述
-        prompt.append(visualDescription);
-        
-        // 添加角色一致性要求
-        if (characterDescriptions != null && !characterDescriptions.isEmpty()) {
-            prompt.append("\n\nCharacters in this scene:\n");
-            prompt.append(characterDescriptions);
-            prompt.append("\nIMPORTANT: Maintain the same character designs, appearances, and styles as shown in the reference images.");
-            prompt.append("\nEnsure all characters (").append(String.join(", ", characterNames))
-                    .append(") are clearly visible and recognizable.");
-        }
-        
-        // 添加质量和风格要求
-        prompt.append("\n\nStyle requirements:");
-        prompt.append("\n- High-quality, cinematic, detailed");
-        prompt.append("\n- Professional animation style");
-        prompt.append("\n- Consistent lighting, color palette, and composition");
-        prompt.append("\n- Clear focus on the main action and characters");
-        prompt.append("\n- Suitable for video generation");
-        
-        return prompt.toString();
     }
 
     @Override
-    public String getStepName() {
-        return "Keyframe Generation (Multi-Character)";
-    }
+    public String getStepName() { return "Industrial Keyframe Management"; }
 }

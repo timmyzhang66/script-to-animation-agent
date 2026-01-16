@@ -1,22 +1,15 @@
 package com.agent.animation.workflow;
 
 import com.agent.animation.config.AppConfig;
-import com.agent.animation.dto.Scene;
-import com.agent.animation.service.VideoProcessingService;
 import com.agent.animation.service.OSSService;
+import com.agent.animation.service.VideoProcessingService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
-import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
+import java.util.stream.Collectors;
 
-/**
- * 视频合并工作流步骤
- * 将所有场景的视频片段合并为最终视频
- */
 public class VideoMergingStep implements WorkflowStep {
     private static final Logger logger = LoggerFactory.getLogger(VideoMergingStep.class);
     private final VideoProcessingService videoProcessingService;
@@ -32,58 +25,30 @@ public class VideoMergingStep implements WorkflowStep {
     @Override
     public void execute(WorkflowContext context) throws Exception {
         logger.info("Starting video merging step");
-        
-        // 收集所有场景的视频路径
-        List<String> videoPaths = new ArrayList<>();
-        for (Scene scene : context.getStoryboard().getScenes()) {
-            String videoPath = scene.getVideoPath();
-            if (videoPath == null || videoPath.isEmpty()) {
-                throw new Exception("Scene " + scene.getSceneNumber() + " has no video path");
-            }
-            
-            File videoFile = new File(videoPath);
-            if (!videoFile.exists()) {
-                throw new Exception("Video file does not exist: " + videoPath);
-            }
-            
-            videoPaths.add(videoPath);
-            logger.info("Added video for scene {}: {}", scene.getSceneNumber(), videoPath);
+
+        List<String> videoPaths = context.getStoryboard().getScenes().stream()
+                .map(s -> s.getVideoPath())
+                .filter(path -> path != null)
+                .collect(Collectors.toList());
+
+        if (videoPaths.isEmpty()) {
+            throw new Exception("No scene videos found to merge");
         }
-        
-        // 生成输出文件名
-        String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
-        String outputFileName = "animation_" + timestamp + "." + config.getVideoOutputFormat();
-        String outputPath = config.getOutputDir() + File.separator + outputFileName;
-        
-        // 确保输出目录存在
-        new File(config.getOutputDir()).mkdirs();
-        
-        // 合并视频
-        logger.info("Merging {} videos into final output", videoPaths.size());
-        videoProcessingService.mergeVideos(videoPaths, outputPath);
-        
-        // 保存最终视频路径到上下文
-        context.setFinalVideoPath(outputPath);
-        
-        // 上传最终视频到 GCS
-        logger.info("Uploading final video to OSS...");
-        String finalVideoUrl = ossService.uploadFile(outputPath, null);
-        context.setFinalVideoUrl(finalVideoUrl);
-        
-        logger.info("Video merging completed: {}", outputPath);
-        logger.info("Final video URL: {}", finalVideoUrl);
-        
-        // 输出视频信息
-        try {
-            String videoInfo = videoProcessingService.getVideoInfo(outputPath);
-            logger.info("Final video info:\n{}", videoInfo);
-        } catch (Exception e) {
-            logger.warn("Failed to get video info", e);
-        }
+
+        String finalVideoPath = config.getTempDir() + File.separator + "final_animation.mp4";
+
+        // 执行 FFmpeg 合并
+        videoProcessingService.mergeVideos(videoPaths, finalVideoPath);
+
+        context.setFinalVideoPath(finalVideoPath);
+
+        // 上传最终结果
+        String finalUrl = ossService.uploadFile(finalVideoPath, null);
+        context.setFinalVideoUrl(finalUrl);
+
+        logger.info("Final merged video ready: {}", finalUrl);
     }
 
     @Override
-    public String getStepName() {
-        return "Video Merging";
-    }
+    public String getStepName() { return "Final Video Merging"; }
 }
