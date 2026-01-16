@@ -38,11 +38,13 @@ public class AnimationAgent {
 
     /**
      * 提交生成任务
+     * @param scriptPath 脚本文件路径
      * @return 返回任务 ID，用于后续状态查询
      */
     public String generateAnimation(String scriptPath) {
         logger.info("Submitting new animation task for script: {}", scriptPath);
 
+        // 修正逻辑：使用无参构造函数并手动注入 ScriptInput
         WorkflowContext context = new WorkflowContext();
         context.setScriptInput(new ScriptInput(scriptPath));
 
