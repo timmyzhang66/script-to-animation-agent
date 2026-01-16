@@ -354,6 +354,34 @@ public class NanoBananaProService {
             JsonObject candidate = candidates.get(0).getAsJsonObject();
             logger.debug("Candidate keys: {}", candidate.keySet());
             
+            // 检查 finishReason
+            if (candidate.has("finishReason")) {
+                String finishReason = candidate.get("finishReason").getAsString();
+                logger.warn("API returned finishReason: {}", finishReason);
+                
+                // 处理安全过滤
+                if ("IMAGE_SAFETY".equals(finishReason)) {
+                    String finishMessage = candidate.has("finishMessage") 
+                            ? candidate.get("finishMessage").getAsString() 
+                            : "Image was filtered for safety reasons";
+                    logger.error("Image generation blocked by safety filter: {}", finishMessage);
+                    throw new Exception("Image generation blocked by safety filter: " + finishMessage + 
+                            "\n\nSuggestions:\n" +
+                            "1. Rephrase the prompt to avoid sensitive content\n" +
+                            "2. Remove or modify reference images that may trigger filters\n" +
+                            "3. Avoid explicit, violent, or inappropriate descriptions");
+                }
+                
+                // 处理其他 finishReason
+                if (!"STOP".equals(finishReason)) {
+                    String finishMessage = candidate.has("finishMessage") 
+                            ? candidate.get("finishMessage").getAsString() 
+                            : "Unknown reason";
+                    logger.error("Image generation failed with finishReason: {} - {}", finishReason, finishMessage);
+                    throw new Exception("Image generation failed: " + finishReason + " - " + finishMessage);
+                }
+            }
+            
             JsonObject content = candidate.getAsJsonObject("content");
             if (content == null) {
                 logger.error("No content in candidate. Candidate: {}", candidate.toString());
