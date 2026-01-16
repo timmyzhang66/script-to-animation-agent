@@ -1,0 +1,22 @@
+{
+  "characters": [
+    {
+      "name": "Detective John Smith",
+      "description": "A tall detective in his 40s with sharp, observant eyes and a weathered face that tells stories of countless cases. He wears a dark gray trench coat over a crisp white shirt and black tie. His short, salt-and-pepper hair is neatly combed. He has a serious, determined expression and carries himself with quiet confidence. His posture is upright and alert, always ready for action.",
+      "role": "Protagonist",
+      "isMainCharacter": true
+    },
+    {
+      "name": "Sarah Johnson",
+      "description": "A young journalist in her late 20s with long, flowing brown hair and bright, curious green eyes. She wears casual but professional attire: a light blue blazer over a white blouse and dark jeans. She has an energetic, enthusiastic demeanor and often carries a notebook and pen. Her expression is inquisitive and friendly, with a slight smile that suggests optimism and determination.",
+      "role": "Supporting Character",
+      "isMainCharacter": false
+    },
+    {
+      "name": "Professor Michael Chen",
+      "description": "An elderly professor in his 60s with gray hair, round glasses, and a kind, wise expression. He wears a brown tweed jacket with elbow patches over a cream-colored sweater. His posture is slightly hunched from years of studying, but his eyes sparkle with intelligence and warmth. He often gestures expressively when speaking, conveying his passion for knowledge.",
+      "role": "Supporting Character",
+      "isMainCharacter": false
+    }
+  ]
+}

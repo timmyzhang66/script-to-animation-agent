@@ -7,6 +7,7 @@ public class ScriptInput {
     private String scriptContent;
     private String title;
     private String description;
+    private String charactersFilePath;  // 角色定义文件路径（可选）
 
     public ScriptInput() {
     }
@@ -19,6 +20,13 @@ public class ScriptInput {
         this.scriptContent = scriptContent;
         this.title = title;
         this.description = description;
+    }
+
+    public ScriptInput(String scriptContent, String title, String description, String charactersFilePath) {
+        this.scriptContent = scriptContent;
+        this.title = title;
+        this.description = description;
+        this.charactersFilePath = charactersFilePath;
     }
 
     public String getScriptContent() {
@@ -45,12 +53,21 @@ public class ScriptInput {
         this.description = description;
     }
 
+    public String getCharactersFilePath() {
+        return charactersFilePath;
+    }
+
+    public void setCharactersFilePath(String charactersFilePath) {
+        this.charactersFilePath = charactersFilePath;
+    }
+
     @Override
     public String toString() {
         return "ScriptInput{" +
                 "title='" + title + '\'' +
                 ", description='" + description + '\'' +
                 ", scriptLength=" + (scriptContent != null ? scriptContent.length() : 0) +
+                ", charactersFilePath='" + charactersFilePath + '\'' +
                 '}';
     }
 }

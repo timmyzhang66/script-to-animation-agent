@@ -120,22 +120,43 @@ public class Main {
         
         // 从命令行参数读取
         if (args.length > 0) {
-            if (args[0].equals("-f") || args[0].equals("--file")) {
-                // 从文件读取
-                if (args.length < 2) {
-                    throw new IllegalArgumentException("File path not provided");
+            int i = 0;
+            while (i < args.length) {
+                String arg = args[i];
+                
+                if (arg.equals("-f") || arg.equals("--file")) {
+                    // 从文件读取脚本
+                    if (i + 1 >= args.length) {
+                        throw new IllegalArgumentException("File path not provided for -f option");
+                    }
+                    String filePath = args[i + 1];
+                    logger.info("Reading script from file: {}", filePath);
+                    String content = new String(Files.readAllBytes(Paths.get(filePath)));
+                    scriptInput.setScriptContent(content);
+                    scriptInput.setTitle(Paths.get(filePath).getFileName().toString());
+                    i += 2;
+                } else if (arg.equals("-c") || arg.equals("--characters")) {
+                    // 从文件读取角色定义
+                    if (i + 1 >= args.length) {
+                        throw new IllegalArgumentException("Characters file path not provided for -c option");
+                    }
+                    String charactersFilePath = args[i + 1];
+                    logger.info("Using characters file: {}", charactersFilePath);
+                    scriptInput.setCharactersFilePath(charactersFilePath);
+                    i += 2;
+                } else if (arg.equals("-h") || arg.equals("--help")) {
+                    printUsage();
+                    System.exit(0);
+                } else {
+                    // 直接作为脚本内容
+                    scriptInput.setScriptContent(arg);
+                    i++;
                 }
-                String filePath = args[1];
-                logger.info("Reading script from file: {}", filePath);
-                String content = new String(Files.readAllBytes(Paths.get(filePath)));
-                scriptInput.setScriptContent(content);
-                scriptInput.setTitle(Paths.get(filePath).getFileName().toString());
-            } else if (args[0].equals("-h") || args[0].equals("--help")) {
-                printUsage();
-                System.exit(0);
-            } else {
-                // 直接作为脚本内容
-                scriptInput.setScriptContent(args[0]);
+            }
+            
+            // 验证必须有脚本内容
+            if (scriptInput.getScriptContent() == null || scriptInput.getScriptContent().trim().isEmpty()) {
+                throw new IllegalArgumentException("No script content provided. Use -f to specify a script file.");
             }
         } else {
             // 交互式输入
@@ -189,14 +210,19 @@ public class Main {
         System.out.println("\nUsage:");
         System.out.println("  java -jar script-to-animation-agent.jar [options]");
         System.out.println("\nOptions:");
-        System.out.println("  -f, --file <path>    Read script from file");
-        System.out.println("  -h, --help           Show this help message");
-        System.out.println("  <script>             Provide script content directly");
+        System.out.println("  -f, --file <path>        Read script from file");
+        System.out.println("  -c, --characters <path>  Read character definitions from JSON file (optional)");
+        System.out.println("  -h, --help               Show this help message");
+        System.out.println("  <script>                 Provide script content directly");
         System.out.println("\nIf no arguments provided, interactive mode will start.");
         System.out.println("\nEnvironment Variables:");
-        System.out.println("  GEMINI_API_KEY       API key for Google Gemini (required)");
-        System.out.println("\nExample:");
+        System.out.println("  GEMINI_API_KEY           API key for Google Gemini (required)");
+        System.out.println("\nExamples:");
+        System.out.println("  # Use AI to analyze characters from script");
         System.out.println("  java -jar script-to-animation-agent.jar -f my_script.txt");
+        System.out.println("");
+        System.out.println("  # Use predefined characters from JSON file");
+        System.out.println("  java -jar script-to-animation-agent.jar -f my_script.txt -c characters.json");
         System.out.println();
     }
 }

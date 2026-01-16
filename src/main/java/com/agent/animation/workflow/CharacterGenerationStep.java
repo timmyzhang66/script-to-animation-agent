@@ -12,6 +12,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -39,11 +41,18 @@ public class CharacterGenerationStep implements WorkflowStep {
     public void execute(WorkflowContext context) throws Exception {
         logger.info("Starting character generation step");
         
-        String scriptContent = context.getScriptInput().getScriptContent();
+        String charactersFilePath = context.getScriptInput().getCharactersFilePath();
+        String charactersJson;
         
-        // 1. 使用 Gemini 3 Flash 分析脚本中的所有角色
-        logger.info("Analyzing all characters in the script...");
-        String charactersJson = geminiTextService.analyzeCharacters(scriptContent);
+        // 1. 从 JSON 文件读取角色，或使用 AI 分析
+        if (charactersFilePath != null && !charactersFilePath.trim().isEmpty()) {
+            logger.info("Loading characters from file: {}", charactersFilePath);
+            charactersJson = loadCharactersFromFile(charactersFilePath);
+        } else {
+            logger.info("No characters file provided, using AI to analyze script...");
+            String scriptContent = context.getScriptInput().getScriptContent();
+            charactersJson = geminiTextService.analyzeCharacters(scriptContent);
+        }
         
         logger.debug("Characters JSON: {}", charactersJson);
         
@@ -135,6 +144,33 @@ public class CharacterGenerationStep implements WorkflowStep {
         }
     }
 
+    /**
+     * 从文件加载角色定义
+     */
+    private String loadCharactersFromFile(String filePath) throws Exception {
+        try {
+            File file = new File(filePath);
+            if (!file.exists()) {
+                throw new Exception("Characters file not found: " + filePath);
+            }
+            
+            String content = new String(Files.readAllBytes(Paths.get(filePath)));
+            
+            // 验证 JSON 格式
+            JsonObject jsonObject = gson.fromJson(content, JsonObject.class);
+            if (!jsonObject.has("characters")) {
+                throw new Exception("Invalid characters file format: missing 'characters' field");
+            }
+            
+            logger.info("Successfully loaded characters from file: {}", filePath);
+            return content;
+            
+        } catch (Exception e) {
+            logger.error("Failed to load characters from file: {}", filePath, e);
+            throw new Exception("Failed to load characters file: " + e.getMessage(), e);
+        }
+    }
+    
     /**
      * 构建角色生成的增强提示词
      */
